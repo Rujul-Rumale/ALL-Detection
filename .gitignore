@@ -52,3 +52,8 @@ desktop.ini
 logs/
 checkpoints/
 wandb/
+
+# Internal docs (not for faculty)
+WORK_SUMMARY.md
+GIT_REWRITE_GUIDE.md
+PROGRESS.md
