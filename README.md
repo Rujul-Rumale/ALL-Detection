@@ -1,75 +1,47 @@
 # ALL Detection
 
-Acute Lymphoblastic Leukemia (ALL) detection using digital signal processing and deep learning.
+Leukemia detection from blood images using DSP and deep learning.
 
-## Overview
+## What it does
 
-This project implements an end-to-end system for ALL detection from blood smear microscopy images:
+Detects white blood cells from microscope images and classifies them as healthy or ALL (leukemia).
 
-1. **DSP Pipeline:** Segments white blood cells using K-Means clustering on L*a*b* color space
-2. **AI Classifier:** MobileNetV3-Small trained on 10K+ labeled cells
-3. **Explainability:** Grad-CAM visualizations for prediction transparency
+**Main parts:**
+- DSP segmentation (K-Means on LAB color space)
+- MobileNetV3 classifier trained on C-NMC dataset
+- Grad-CAM for explanations
 
 ## Datasets
 
-| Dataset | Purpose | Details |
-|---------|---------|---------|
-| **C-NMC** | Classifier training | ~10,600 pre-segmented cells (ALL vs healthy) |
-| **ALL-IDB1** | DSP pipeline demo | Full blood smear images for segmentation |
-| **Healthy-WBC** | Future enhancement | 5-class WBC type classification |
-
-See [DATASETS.md](DATASETS.md) for details.
-
-## Project Structure
-
-```
-ALL-Detection/
-├── matlab_demo/          # MATLAB prototype (segmentation validated)
-├── src/                  # Python implementation
-│   ├── segmentation/     # DSP pipeline (ALL-IDB1 methods)
-│   ├── classifier/       # MobileNetV3 training (C-NMC data)
-│   ├── xai/              # Grad-CAM
-│   └── gui/              # PyQt5 application
-├── C-NMC_Dataset/        # Training data (pre-segmented cells)
-├── ALL_IDB/              # Deployment test data (full images)
-└── models/               # Trained .tflite models
-```
+We're using **C-NMC** for training (~10k labeled cells) and **ALL-IDB1** for testing the segmentation.
 
 ## Quick Start
 
-### MATLAB Demo
-1. Run `matlab_demo/leukemia_dsp_demo.m`
-2. Select a blood smear image from ALL-IDB1
-3. View segmentation results
+### MATLAB version
+Just run `matlab_demo/leukemia_dsp_demo.m` and pick an image. It'll show the segmentation and extract individual cells.
 
-### Python (Coming Soon)
+### Python (WIP)
+Still working on this part. So far:
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Train classifier
-python src/train.py --dataset C-NMC_Dataset/fold_0
-
-# Run inference on new image
-python src/infer.py --image path/to/blood_smear.jpg
+python src/demo_dataset.py      # check dataset
+python src/demo_segmentation.py # test segmentation
 ```
 
-## Method
+## How it works
 
-### Training Phase
-```
-C-NMC pre-cropped cells → MobileNetV3 training → Trained model
-```
+**Training:**
+- Use pre-cropped C-NMC cells to train classifier
+- MobileNetV3-Small model
 
-### Deployment Phase
-```
-Raw microscope image
-  ↓ DSP Segmentation (LAB + K-Means + Morphology)
-  ↓ Cropped cells
-  ↓ Classifier (trained on C-NMC)
-  ↓ Results + Grad-CAM explanations
-```
+**Deployment:**
+- Raw image → DSP segmentation (LAB + K-Means) → crop cells → classifier → results
+
+## TODO
+- [ ] Finish model training
+- [ ] Add Grad-CAM
+- [ ] Make GUI for raspberry pi
+- [ ] Test on real images
 
 ## License
-
 MIT
