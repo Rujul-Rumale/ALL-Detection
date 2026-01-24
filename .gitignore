@@ -1,0 +1,54 @@
+# Datasets (large files)
+ALL_IDB/
+C-NMC_Dataset/
+Healthy_WBC_Dataset/
+
+# Archives
+archive/
+
+# MATLAB
+*.asv
+*.m~
+*.autosave
+*.slxc
+*.mex*
+codegen/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Models
+models/*.tflite
+models/*.h5
+models/*.pb
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Training outputs
+logs/
+checkpoints/
+wandb/

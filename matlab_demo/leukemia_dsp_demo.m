@@ -81,4 +81,62 @@ title(sprintf('Found %d WBCs', length(boundaries)));
 box on;
 hold off;
 
+% extract individual cells
+fprintf('Extracting individual cells... ');
+stats = regionprops(cleanMask, 'BoundingBox', 'Area');
+
+% create output folder
+outputFolder = fullfile(path, 'extracted_cells');
+if ~exist(outputFolder, 'dir')
+    mkdir(outputFolder);
+end
+
+% crop and save each cell
+cellImages = {};
+padding = 10;
+validCells = 0;
+
+for i = 1:length(stats)
+    bbox = stats(i).BoundingBox;
+
+    % add padding
+    x = max(1, round(bbox(1)) - padding);
+    y = max(1, round(bbox(2)) - padding);
+    w = min(cols - x, round(bbox(3)) + 2*padding);
+    h = min(rows - y, round(bbox(4)) + 2*padding);
+
+    % crop cell
+    cellImg = imcrop(img, [x, y, w, h]);
+
+    % skip very small cells
+    if w > 20 && h > 20
+        validCells = validCells + 1;
+        cellImages{validCells} = cellImg;
+
+        % save to disk
+        filename = sprintf('cell_%03d.jpg', validCells);
+        imwrite(cellImg, fullfile(outputFolder, filename));
+    end
+end
+
+fprintf('done (%d cells saved)\n', validCells);
+
+% display extracted cells in new figure
+if validCells > 0
+    figure('Name', 'Extracted Cells', 'NumberTitle', 'off', 'Color', 'w');
+
+    % determine montage size
+    nCols = ceil(sqrt(validCells));
+    nRows = ceil(validCells / nCols);
+
+    for i = 1:validCells
+        subplot(nRows, nCols, i);
+        imshow(cellImages{i});
+        title(sprintf('Cell %d', i), 'FontSize', 8);
+        axis off;
+    end
+
+    fprintf('Cells saved to: %s\n', outputFolder);
+end
+
 disp('Done!');
