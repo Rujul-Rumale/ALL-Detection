@@ -1,47 +1,66 @@
-# ALL Detection
+# ALL Detection Project
 
-Leukemia detection from blood images using DSP and deep learning.
+Automated leukemia detection from blood microscope images.
 
-## What it does
+## Overview
 
-Detects white blood cells from microscope images and classifies them as healthy or ALL (leukemia).
+This project detects Acute Lymphoblastic Leukemia (ALL) from blood cell images using computer vision + deep learning.
 
-**Main parts:**
-- DSP segmentation (K-Means on LAB color space)
-- MobileNetV3 classifier trained on C-NMC dataset
-- Grad-CAM for explanations
+**How it works:**
+1. Segment white blood cells using K-Means clustering on LAB color space
+2. Classify each cell as healthy or ALL using MobileNetV3
+3. Show results with Grad-CAM heatmaps (explainability)
 
-## Datasets
+## Datasets Used
 
-We're using **C-NMC** for training (~10k labeled cells) and **ALL-IDB1** for testing the segmentation.
+- **C-NMC Dataset** - ~10,600 labeled cells for training (main dataset)
+- **ALL-IDB1** - For testing segmentation on full blood smear images
 
-## Quick Start
+See DATASETS.md for more info.
 
-### MATLAB version
-Just run `matlab_demo/leukemia_dsp_demo.m` and pick an image. It'll show the segmentation and extract individual cells.
+## Running the Code
 
-### Python (WIP)
-Still working on this part. So far:
+### Test folder (MATLAB stuff - old demo)
 ```bash
-pip install -r requirements.txt
-python src/demo_dataset.py      # check dataset
-python src/demo_segmentation.py # test segmentation
+cd test
+# Open test.m in MATLAB and run it
 ```
 
-## How it works
+### Python Implementation
+```bash
+pip install -r requirements.txt
 
-**Training:**
-- Use pre-cropped C-NMC cells to train classifier
-- MobileNetV3-Small model
+# View dataset info and samples
+python src/demo_dataset.py
 
-**Deployment:**
-- Raw image → DSP segmentation (LAB + K-Means) → crop cells → classifier → results
+# Test WBC segmentation (opens file picker)
+python src/demo_segmentation.py
+```
 
-## TODO
-- [ ] Finish model training
-- [ ] Add Grad-CAM
-- [ ] Make GUI for raspberry pi
-- [ ] Test on real images
+## Current Status
 
-## License
-MIT
+✅ WBC segmentation working (K-means on a*b* channels)  
+✅ Dataset loader complete (3-fold CV ready)  
+✅ Fixed over-segmentation issue with bilobed nuclei  
+⏳ Model training script - next step  
+⏳ TFLite export for Pi deployment  
+⏳ Grad-CAM visualization  
+
+## Project Structure
+
+```
+src/
+├── segmentation/  - WBC segmentation (K-means)
+├── classifier/    - Dataset loader, will add model here
+├── utils/         - Visualization tools
+└── xai/           - Grad-CAM (todo)
+```
+
+More details in PROJECT_STRUCTURE.md
+
+## To-Do
+- Train MobileNetV3 classifier
+- Export to TFLite (for raspberry pi)
+- Add Grad-CAM
+- Build inference pipeline
+- Make GUI maybe?

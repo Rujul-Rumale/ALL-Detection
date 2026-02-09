@@ -14,13 +14,39 @@ from utils.visualization import visualize_segmentation, visualize_cell_montage
 
 
 def main():
-    # Example: segment an ALL-IDB1 image
-    # User should update this path to an actual image
-    image_path = Path("ALL_IDB/ALL_IDB Dataset/L1/Im003_1.tif")
+    # Allow user to select an image
+    from tkinter import Tk, filedialog
+    
+    # Hide the main tkinter window
+    root = Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)  # Bring dialog to front
+    
+    # Open file dialog starting in ALL_IDB directory
+    initial_dir = Path("ALL_IDB/ALL_IDB Dataset")
+    if not initial_dir.exists():
+        initial_dir = Path(".")
+    
+    print("Opening file dialog...")
+    file_path = filedialog.askopenfilename(
+        title="Select an ALL-IDB Image",
+        initialdir=str(initial_dir),
+        filetypes=[
+            ("Image files", "*.jpg *.jpeg *.tif *.tiff *.png"),
+            ("All files", "*.*")
+        ]
+    )
+    
+    root.destroy()  # Clean up
+    
+    if not file_path:
+        print("No file selected. Exiting.")
+        return
+    
+    image_path = Path(file_path)
     
     if not image_path.exists():
         print(f"Error: Image not found at {image_path}")
-        print("Please update the image_path in this script.")
         return
     
     print(f"Processing: {image_path}")

@@ -44,8 +44,14 @@ class WBCSegmenter:
         wbc_mask = (labels == wbc_cluster).astype(np.uint8)
         
         # morphology to clean up
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-        clean_mask = cv2.morphologyEx(wbc_mask, cv2.MORPH_OPEN, kernel)
+        # Use smaller kernel to reduce over-segmentation
+        kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        clean_mask = cv2.morphologyEx(wbc_mask, cv2.MORPH_OPEN, kernel_open)
+        
+        # Add closing to reconnect thin bridges (prevents splitting bilobed nuclei)
+        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        clean_mask = cv2.morphologyEx(clean_mask, cv2.MORPH_CLOSE, kernel_close)
+        
         clean_mask = ndimage.binary_fill_holes(clean_mask).astype(np.uint8)
         
         # remove small stuff
