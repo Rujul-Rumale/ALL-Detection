@@ -1,513 +1,545 @@
 """
-ALL Detection System - Local UI
-CustomTkinter-based interface for blood smear analysis
+ALL Detection System - Medical AI Dashboard
+Target Hardware: Raspberry Pi 5 + 1080p Official Monitor
 """
 
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 import numpy as np
+import math
 import threading
+import traceback
 import sys
 import os
-from datetime import datetime
+import queue
+import subprocess
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from detection.stage1_screening import ALLScreener
 from detection.blast_detector_v5 import detect_blasts
+from detection.llm_utils import LLMGenerator
+from ui.theme import THEME
 
 
-# === THEME ===
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+# === CUSTOM WIDGETS ===
+
+class ModernCard(ctk.CTkFrame):
+    """Themed card. Callers can override any CTkFrame kwarg."""
+    def __init__(self, parent, **kwargs):
+        defaults = {
+            "fg_color": THEME["surface"],
+            "corner_radius": THEME["corner_radius"],
+            "border_width": THEME["border_width"],
+            "border_color": THEME["border_color"],
+        }
+        defaults.update(kwargs)
+        super().__init__(parent, **defaults)
 
 
-class CellCard(ctk.CTkFrame):
-    """Card widget for displaying a detected cell with its metrics."""
-    
+class CellCard(ModernCard):
+    """Card for a single detected cell."""
     def __init__(self, parent, cell_data, crop_image=None, **kwargs):
         super().__init__(parent, **kwargs)
-        
-        is_blast = cell_data.get('is_blast', False)
-        border_color = "#FF4444" if is_blast else "#44AA44"
-        
-        self.configure(
-            corner_radius=10,
-            border_width=2,
-            border_color=border_color,
-            fg_color=("#2B2B2B", "#2B2B2B")
-        )
-        
-        # Layout: [Image] [Metrics] [Explanation]
-        self.grid_columnconfigure(1, weight=1)
-        
-        # Cell thumbnail
-        if crop_image is not None:
-            # Convert numpy array to PIL Image
-            pil_img = Image.fromarray(crop_image)
-            pil_img = pil_img.resize((80, 80), Image.Resampling.LANCZOS)
-            ctk_img = ctk.CTkImage(pil_img, size=(80, 80))
-            img_label = ctk.CTkLabel(self, image=ctk_img, text="")
-            img_label.grid(row=0, column=0, rowspan=2, padx=10, pady=10)
-        else:
-            # Placeholder
-            placeholder = ctk.CTkLabel(self, text="🔬", font=("Arial", 40))
-            placeholder.grid(row=0, column=0, rowspan=2, padx=10, pady=10)
-        
-        # Cell ID and classification
-        cls_text = cell_data['classification']
-        cls_color = "#FF6666" if is_blast else "#66AA66"
-        
-        header = ctk.CTkLabel(
-            self,
-            text=f"Cell #{cell_data['id']} - {cls_text}",
-            font=("Arial", 14, "bold"),
-            text_color=cls_color
-        )
-        header.grid(row=0, column=1, sticky="w", padx=5, pady=(10, 0))
-        
-        # Metrics (V5 per-cell classification)
-        m_text = f"Circ: {cell_data['circularity']*100:.0f}% | Homo: {cell_data['homogeneity']*100:.0f}% | Score: {cell_data['score']:.2f}"
-        # NOTE: TFLite is now image-level, shown in banner, not per-cell
-        
-        metrics = ctk.CTkLabel(
-            self,
-            text=m_text,
-            font=("Arial", 11),
-            text_color="#AAAAAA",
-            justify="left"
-        )
-        metrics.grid(row=1, column=1, sticky="w", padx=5, pady=(0, 10))
 
+        is_blast = cell_data.get('is_blast', False)
+        status_color = THEME["danger"] if is_blast else THEME["success"]
+
+        if is_blast:
+            self.configure(border_color=status_color, border_width=2)
+
+        self.grid_columnconfigure(1, weight=1)
+
+        # Thumbnail
+        if crop_image is not None:
+            pil_img = Image.fromarray(crop_image)
+            pil_img = pil_img.resize((60, 60), Image.Resampling.LANCZOS)
+            ctk_img = ctk.CTkImage(pil_img, size=(60, 60))
+            ctk.CTkLabel(self, image=ctk_img, text="").grid(
+                row=0, column=0, rowspan=2, padx=12, pady=10)
+
+        # Header
+        header_text = f"Cell #{cell_data['id']} • {cell_data['classification']}"
+        ctk.CTkLabel(
+            self, text=header_text,
+            font=THEME["font_main"], text_color=status_color
+        ).grid(row=0, column=1, sticky="sw", padx=(0, 10), pady=(10, 2))
+
+        # Metrics
+        metrics = f"Circ: {cell_data['circularity']*100:.0f}%  |  Score: {cell_data['score']:.2f}"
+        ctk.CTkLabel(
+            self, text=metrics,
+            font=THEME["font_sm"], text_color=THEME["text_dim"]
+        ).grid(row=1, column=1, sticky="nw", padx=(0, 10), pady=(0, 10))
+
+
+class ShimmerDots(tk.Canvas):
+    """
+    Premium thinking animation — 3 dots that pulse in sequence
+    with smooth sinusoidal brightness, similar to Gemini/Claude.
+    """
+    DOT_COUNT = 3
+    DOT_RADIUS = 5
+    DOT_SPACING = 22
+    SPEED = 60  # ms per frame
+
+    def __init__(self, parent, **kwargs):
+        # Parse accent color to RGB
+        self._accent = THEME["accent"]
+        self._bg = THEME["surface"]
+        super().__init__(
+            parent,
+            width=self.DOT_COUNT * self.DOT_SPACING + 10,
+            height=self.DOT_RADIUS * 2 + 10,
+            bg=self._bg, highlightthickness=0, **kwargs
+        )
+        self._running = True
+        self._tick = 0
+        self._dots = []
+
+        cy = self.DOT_RADIUS + 5
+        for i in range(self.DOT_COUNT):
+            cx = self.DOT_RADIUS + 5 + i * self.DOT_SPACING
+            d = self.create_oval(
+                cx - self.DOT_RADIUS, cy - self.DOT_RADIUS,
+                cx + self.DOT_RADIUS, cy + self.DOT_RADIUS,
+                fill=self._accent, outline=""
+            )
+            self._dots.append(d)
+
+        self._animate()
+
+    def _animate(self):
+        if not self._running:
+            return
+        self._tick += 1
+        for i, dot in enumerate(self._dots):
+            # Each dot offset by phase → wave effect
+            phase = (self._tick * 0.15) - (i * 1.2)
+            brightness = 0.35 + 0.65 * max(0, math.sin(phase))
+            color = self._blend(self._bg, self._accent, brightness)
+            # Scale dot
+            scale = 0.7 + 0.3 * max(0, math.sin(phase))
+            cy = self.DOT_RADIUS + 5
+            cx = self.DOT_RADIUS + 5 + i * self.DOT_SPACING
+            r = self.DOT_RADIUS * scale
+            self.coords(dot, cx - r, cy - r, cx + r, cy + r)
+            self.itemconfig(dot, fill=color)
+        self.after(self.SPEED, self._animate)
+
+    def _blend(self, bg_hex, fg_hex, t):
+        """Blend two hex colors by factor t."""
+        bg = self._hex_to_rgb(bg_hex)
+        fg = self._hex_to_rgb(fg_hex)
+        r = int(bg[0] + (fg[0] - bg[0]) * t)
+        g = int(bg[1] + (fg[1] - bg[1]) * t)
+        b = int(bg[2] + (fg[2] - bg[2]) * t)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _hex_to_rgb(self, h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+    def fade_out(self, callback, steps=10, step=0):
+        """Gradually fade dots to background and shrink, then call callback."""
+        if step >= steps:
+            callback()
+            return
+        t = step / steps
+        for dot in self._dots:
+            color = self._blend(self._accent, self._bg, t)
+            self.itemconfig(dot, fill=color)
+        self.after(50, lambda: self.fade_out(callback, steps, step + 1))
+
+    def stop(self):
+        self._running = False
+
+
+class AIStatusWidget(ctk.CTkFrame):
+    """
+    Premium AI thinking indicator with shimmer dots.
+    Smooth transition to 'Analysis Complete' when done.
+    """
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, fg_color="transparent", **kwargs)
+        self._running = True
+
+        # Top row: label + shimmer dots
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x")
+
+        self.status_label = ctk.CTkLabel(
+            row, text="Analyzing with Phi-3",
+            font=("Roboto", 13, "bold"), text_color=THEME["accent"]
+        )
+        self.status_label.pack(side="left")
+
+        self.shimmer = ShimmerDots(row)
+        self.shimmer.pack(side="left", padx=(8, 0))
+
+    def set_complete(self):
+        """Smooth transition: fade dots → show checkmark."""
+        self.shimmer.stop()
+        self.shimmer.fade_out(self._show_complete)
+
+    def _show_complete(self):
+        """Final state after fade."""
+        self.shimmer.pack_forget()
+        self.status_label.configure(
+            text="✓  AI Analysis Complete",
+            text_color=THEME["success"]
+        )
+
+
+class AITextBox(ctk.CTkTextbox):
+    """Scrollable text area that accepts streamed tokens. Stays inside its frame."""
+    def __init__(self, parent, **kwargs):
+        super().__init__(
+            parent,
+            font=("Roboto", 14),
+            text_color=THEME["text"],
+            fg_color="transparent",
+            wrap="word",
+            activate_scrollbars=False,
+            state="disabled",
+            **kwargs
+        )
+
+    def append_text(self, chunk):
+        self.configure(state="normal")
+        self.insert("end", chunk)
+        self.see("end")
+        self.configure(state="disabled")
+
+
+# === MAIN APPLICATION ===
 
 class ALLDetectionApp(ctk.CTk):
-    """Main application window."""
-    
     def __init__(self):
         super().__init__()
-        
+
+        # --- Window ---
         self.title("ALL Detection System")
-        self.geometry("1200x700")
+        self.configure(fg_color=THEME["bg"])
+
+        # Proportional sizing: 75% of screen, minimum 1024x600
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        win_w = max(int(screen_w * 0.75), 1024)
+        win_h = max(int(screen_h * 0.75), 600)
+        self.geometry(f"{win_w}x{win_h}")
         self.minsize(900, 500)
-        
-        # Initialize models
+
+        # --- State ---
         self.screener = None
-        self.current_result = None
-        
-        self._create_ui()
-        self._load_models()
-    
-    def _create_ui(self):
-        """Create the main UI layout."""
-        
-        # Top bar
-        self.top_bar = ctk.CTkFrame(self, height=50)
-        self.top_bar.pack(fill="x", padx=10, pady=5)
-        
-        self.title_label = ctk.CTkLabel(
-            self.top_bar,
-            text="🔬 ALL Detection System",
-            font=("Arial", 18, "bold")
+        self.llm_queue = queue.Queue()
+        self.ollama_process = None
+        self.ai_status_widget = None
+
+        # --- Build UI immediately (fast) ---
+        self._build_ui()
+
+        # --- Deferred heavy work (non-blocking) ---
+        self.after(100, self._process_ui_queue)
+        threading.Thread(target=self._boot_services, daemon=True).start()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ------------------------------------------------------------------ #
+    #  Layout — fixed proportional panels                                 #
+    # ------------------------------------------------------------------ #
+    def _build_ui(self):
+        """
+        Fixed proportional layout using grid with uniform groups.
+        Panels have fixed proportions that don't change with content.
+        Adapts to any screen size via weights.
+        """
+
+        # ─── Top Bar ─────────────────────────────────────────────
+        top = ctk.CTkFrame(self, height=56, fg_color=THEME["surface"], corner_radius=0)
+        top.pack(fill="x")
+        top.pack_propagate(False)
+
+        ctk.CTkLabel(
+            top, text="ALL Detection System",
+            font=THEME["font_hero"], text_color=THEME["primary"]
+        ).pack(side="left", padx=25)
+
+        self.status_lbl = ctk.CTkLabel(
+            top, text="Booting...",
+            font=THEME["font_sm"], text_color=THEME["text_dim"]
         )
-        self.title_label.pack(side="left", padx=10)
-        
-        self.load_btn = ctk.CTkButton(
-            self.top_bar,
-            text="📂 Load Image",
-            command=self._load_image,
-            width=120
+        self.status_lbl.pack(side="right", padx=25)
+
+        self.btn_load = ctk.CTkButton(
+            top, text="📂  Load Sample", command=self._load_image,
+            height=36, corner_radius=10,
+            font=THEME["font_main"],
+            fg_color=THEME["primary"], text_color=THEME["bg"],
+            hover_color=THEME["primary_hover"]
         )
-        self.load_btn.pack(side="right", padx=10)
-        
-        self.status_label = ctk.CTkLabel(
-            self.top_bar,
-            text="Ready",
-            font=("Arial", 12),
-            text_color="#888888"
+        self.btn_load.pack(side="right", padx=10, pady=10)
+
+        # ─── Body Container ──────────────────────────────────────
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=12, pady=(12, 8))
+
+        # Uniform groups lock all columns/rows in a group to equal size
+        # Left = 2 units, Right = 3 units → 40% / 60%
+        body.grid_columnconfigure(0, weight=2, uniform="cols")
+        body.grid_columnconfigure(1, weight=3, uniform="cols")
+        # Top = 3 units, Bottom = 2 units → 60% / 40%
+        body.grid_rowconfigure(0, weight=3, uniform="rows")
+        body.grid_rowconfigure(1, weight=2, uniform="rows")
+
+        # ─── Left Top: Image Panel ───────────────────────────────
+        self.image_frame = ctk.CTkFrame(body, fg_color=THEME["surface"], corner_radius=THEME["corner_radius"])
+        self.image_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=(0, 5))
+        self.image_frame.pack_propagate(False)
+
+        self.img_label = ctk.CTkLabel(
+            self.image_frame, text="Load an image to begin analysis",
+            font=THEME["font_header"], text_color=THEME["text_dim"]
         )
-        self.status_label.pack(side="right", padx=20)
-        
-        # Main content area
-        self.main_frame = ctk.CTkFrame(self)
-        self.main_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Configure grid with weights favoring results
-        self.main_frame.grid_columnconfigure(0, weight=2, minsize=300)  # Image panel (40%)
-        self.main_frame.grid_columnconfigure(1, weight=3, minsize=400)  # Results panel (60%)
-        self.main_frame.grid_rowconfigure(0, weight=1)
-        
-        # Left panel - Image display
-        self.image_frame = ctk.CTkFrame(self.main_frame)
-        self.image_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        self.image_frame.grid_propagate(False)  # Prevent image from expanding frame
-        
-        self.image_label = ctk.CTkLabel(
-            self.image_frame,
-            text="Load an image to begin analysis",
-            font=("Arial", 14),
-            text_color="#666666"
+        self.img_label.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # ─── Left Bottom: AI Summary Panel ───────────────────────
+        self.ai_frame = ctk.CTkFrame(body, fg_color=THEME["surface"], corner_radius=THEME["corner_radius"])
+        self.ai_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
+        self.ai_frame.pack_propagate(False)
+
+        self.ai_placeholder = ctk.CTkLabel(
+            self.ai_frame, text="AI summary will appear here",
+            font=THEME["font_sm"], text_color=THEME["text_dim"]
         )
-        self.image_label.pack(expand=True)
-        
-        # Right panel - Results
-        self.results_frame = ctk.CTkFrame(self.main_frame)
-        self.results_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        
-        # Result banner
+        self.ai_placeholder.pack(expand=True, pady=15)
+
+        # ─── Right: Results Panel (full height) ──────────────────
+        results_panel = ctk.CTkFrame(body, fg_color=THEME["surface"], corner_radius=THEME["corner_radius"])
+        results_panel.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(5, 0))
+
+        # Banner
         self.result_banner = ctk.CTkLabel(
-            self.results_frame,
-            text="No analysis yet",
-            font=("Arial", 16, "bold"),
-            height=40
+            results_panel, text="No analysis yet",
+            font=THEME["font_header"], text_color=THEME["text_dim"], height=50
         )
-        self.result_banner.pack(fill="x", padx=10, pady=10)
-        
+        self.result_banner.pack(fill="x", padx=15, pady=(15, 5))
+
         # Scrollable cell list
-        self.cell_list = ctk.CTkScrollableFrame(
-            self.results_frame,
-            label_text="Detected Cells"
+        self.feed_scroll = ctk.CTkScrollableFrame(
+            results_panel, fg_color="transparent", label_text=""
         )
-        self.cell_list.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Bottom bar
-        self.bottom_bar = ctk.CTkFrame(self, height=30)
-        self.bottom_bar.pack(fill="x", padx=10, pady=5)
-        
-        self.progress_label = ctk.CTkLabel(
-            self.bottom_bar,
-            text="",
-            font=("Arial", 10),
-            text_color="#666666"
+        self.feed_scroll.pack(fill="both", expand=True, padx=10, pady=(5, 15))
+
+        # ─── Bottom Status Bar ────────────────────────────────────
+        bottom = ctk.CTkFrame(self, height=28, fg_color=THEME["surface"], corner_radius=0)
+        bottom.pack(fill="x")
+        bottom.pack_propagate(False)
+
+        self.progress_lbl = ctk.CTkLabel(
+            bottom, text="", font=THEME["font_sm"], text_color=THEME["text_dim"]
         )
-        self.progress_label.pack(side="left", padx=10)
-    
-    def _load_models(self):
-        """Load screening model in background."""
-        def load():
-            try:
-                self.screener = ALLScreener()
-                self.after(0, lambda: self.status_label.configure(text="Models loaded ✓"))
-            except Exception as e:
-                self.after(0, lambda: self.status_label.configure(text=f"Model error: {e}"))
-        
-        threading.Thread(target=load, daemon=True).start()
-    
-    def _load_image(self):
-        """Open file dialog and analyze selected image."""
-        filepath = filedialog.askopenfilename(
-            title="Select Blood Smear Image",
-            filetypes=[
-                ("Image files", "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
-                ("All files", "*.*")
-            ]
-        )
-        
-        if filepath:
-            self._analyze_image(filepath)
-    
-    def _analyze_image(self, filepath):
-        """Run analysis pipeline: Detection -> Animation -> LLM."""
-        
-        def run_pipeline():
-            try:
-                # Update UI
-                self.after(0, lambda: self.status_label.configure(text="Analyzing..."))
-                self.after(0, lambda: self.result_banner.configure(text="Processing...", text_color="#FFAA00"))
-                self.after(0, lambda: self._display_image(filepath)) # Reset image
-                
-                # --- STAGE 1: Detection (V5) ---
-                self.after(0, lambda: self.progress_label.configure(text="Stage 1: Detecting cells..."))
-                detection = detect_blasts(filepath, return_crops=True, return_all_cells=True)
-                
-                if not detection['detections']:
-                    self.after(0, lambda: self._show_detection_results(filepath, detection, None))
-                    return
+        self.progress_lbl.pack(side="left", padx=15)
 
-                # --- STAGE 1.5: TFLite Screening on FULL IMAGE ---
-                # NOTE: Model was trained on full microscope images, NOT cell crops
-                self.after(0, lambda: self.progress_label.configure(text="Stage 2: TFLite screening..."))
-                
-                try:
-                    full_image_result = self.screener.predict(filepath)
-                    detection['tflite_result'] = full_image_result
-                    detection['tflite_positive_count'] = len(detection['detections']) if full_image_result['positive'] else 0
-                    
-                    # Propagate full-image result to all cells for display consistency
-                    for cell in detection['detections']:
-                        cell['tflite_positive'] = full_image_result['positive']
-                        cell['tflite_confidence'] = full_image_result['all_probability']
-                except Exception as e:
-                    print(f"TFLite Error: {e}")
-                    detection['tflite_positive_count'] = 0
-
-                # --- STAGE 2: Animation & LLM ---
-                
-                # Start LLM in background if there are blasts
-                blasts = [c for c in detection['detections'] if c.get('is_blast')]
-                self.llm_response = None
-                self.llm_thread = None
-                
-                if blasts:
-                    self.llm_thread = threading.Thread(target=self._run_llm_background, args=(blasts,))
-                    self.llm_thread.start()
-                
-                # Start Animation in Main Thread (scheduled)
-                self.after(0, lambda: self._start_animation(filepath, detection))
-                
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                self.after(0, lambda: self.status_label.configure(text=f"Error: {e}"))
-        
-        threading.Thread(target=run_pipeline, daemon=True).start()
-
-    def _run_llm_background(self, blasts):
-        """Run LLM in background thread."""
+    # ------------------------------------------------------------------ #
+    #  Background Services                                                #
+    # ------------------------------------------------------------------ #
+    def _boot_services(self):
+        """Load models + start Ollama — all in one background thread."""
         try:
-            self.llm_response = self._generate_explanation(blasts)
+            self.screener = ALLScreener()
+            self._safe_status("Models loaded ✓")
+        except Exception as e:
+            print(f"Model Init: {e}")
+            self._safe_status("Model load failed")
+
+        self._manage_ollama()
+
+    def _manage_ollama(self):
+        """Check / start Ollama service (runs in background thread)."""
+        try:
+            if LLMGenerator._check_connection("phi3"):
+                self._safe_status("System Ready  •  AI: Linked ✓")
+                return
+
+            self._safe_status("Starting AI service...")
+            try:
+                flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                self.ollama_process = subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=flags
+                )
+                import time
+                for _ in range(4):
+                    time.sleep(2)
+                    if LLMGenerator._check_connection("phi3"):
+                        self._safe_status("System Ready  •  AI: Started ✓")
+                        return
+                self._safe_status("System Ready  •  AI: Timeout ⚠")
+            except FileNotFoundError:
+                self._safe_status("System Ready  •  AI: Not Installed")
         except Exception:
-            self.llm_response = None
+            self._safe_status("System Ready  •  AI: Error")
 
-    def _start_animation(self, filepath, detection):
-        """Start drawing boxes one by one."""
-        self.progress_label.configure(text="Visualizing detections...")
-        
-        # Sort cells: Blasts first!
-        sorted_cells = sorted(detection['detections'], key=lambda x: not x.get('is_blast', False))
-        
-        # Load clean image
-        import cv2
-        original_img = cv2.imread(filepath)
-        original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
-        
-        self._animate_step(original_img, sorted_cells, 0, detection)
+    def _on_close(self):
+        if self.ollama_process:
+            print("Stopping Ollama service...")
+            self.ollama_process.terminate()
+        self.destroy()
 
-    def _animate_step(self, current_img, cells, index, full_detection):
-        """Recursive animation step."""
-        if index >= len(cells):
-            # Animation done - waiting for LLM?
-            self.progress_label.configure(text="Finalizing analysis...")
-            self._check_llm_and_finish(full_detection)
-            return
-            
-        # Draw NEXT box
-        cell = cells[index]
-        x, y, w, h = cell['bbox']
-        color = (255, 0, 0) if cell.get('is_blast', False) else (0, 255, 0)
-        
-        import cv2
-        # Draw on copy to keep history
-        cv2.rectangle(current_img, (x, y), (x+w, y+h), color, 3) # Thicker box
-        
-        # Show updated image
-        self._display_array_image(current_img)
-        
-        # Update progress
-        status_text = f"Detected: {cell['classification']} (Score: {cell['score']})"
-        self.progress_label.configure(text=status_text)
-        
-        # Schedule next step (300ms delay)
-        self.after(500, lambda: self._animate_step(current_img, cells, index + 1, full_detection))
-
-    def _check_llm_and_finish(self, detection):
-        """Wait for LLM thread to finish then show results."""
-        if self.llm_thread and self.llm_thread.is_alive():
-            self.progress_label.configure(text="Generating AI summary...")
-            self.after(200, lambda: self._check_llm_and_finish(detection))
-            return
-            
-        # LLM done (or wasn't needed)
-        self._show_detection_results(detection['image'], detection, self.llm_response)
-    
-    def _generate_explanation(self, blasts):
-        """Generate dynamic clinical summary based on actual cell metrics."""
+    # ------------------------------------------------------------------ #
+    #  UI Queue (thread-safe LLM token delivery)                          #
+    # ------------------------------------------------------------------ #
+    def _process_ui_queue(self):
         try:
-            from datetime import datetime
-            
-            n_blasts = len(blasts)
-            avg_circ = sum(b['circularity'] for b in blasts) / n_blasts
-            avg_homo = sum(b['homogeneity'] for b in blasts) / n_blasts
-            avg_score = sum(b['score'] for b in blasts) / n_blasts
-            
-            # Dynamic explanation based on metrics
-            parts = []
-            
-            # Circularity interpretation
-            if avg_circ > 0.75:
-                parts.append(f"The cells show high circularity ({avg_circ*100:.0f}%), indicating round nuclear contours typical of immature blast cells.")
-            elif avg_circ > 0.5:
-                parts.append(f"Moderate circularity ({avg_circ*100:.0f}%) suggests some nuclear irregularity.")
-            else:
-                parts.append(f"Low circularity ({avg_circ*100:.0f}%) indicates irregular nuclear borders.")
-            
-            # Homogeneity interpretation
-            if avg_homo > 0.85:
-                parts.append(f"Homogeneity is elevated ({avg_homo*100:.0f}%), reflecting fine chromatin pattern consistent with lymphoblasts.")
-            elif avg_homo > 0.75:
-                parts.append(f"Moderate homogeneity ({avg_homo*100:.0f}%) suggests somewhat uniform chromatin distribution.")
-            
-            # Score interpretation
-            if avg_score > 3.2:
-                parts.append(f"The high aggregate score ({avg_score:.2f}) strongly suggests L1-type lymphoblasts.")
-            elif avg_score > 2.8:
-                parts.append(f"Score ({avg_score:.2f}) is borderline; further examination recommended.")
-            
-            # Combine
-            content = " ".join(parts)
-            if not content:
-                content = f"Detected {n_blasts} suspected blast cell(s) with average score {avg_score:.2f}."
-            
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            return f"[{timestamp} AI] {content}"
+            while True:
+                msg_type, data = self.llm_queue.get_nowait()
+                if msg_type == "token" and hasattr(self, 'ai_textbox'):
+                    self.ai_textbox.append_text(data)
+                elif msg_type == "done":
+                    if self.ai_status_widget:
+                        self.ai_status_widget.set_complete()
+        except queue.Empty:
+            pass
+        finally:
+            self.after(50, self._process_ui_queue)
+
+    # ------------------------------------------------------------------ #
+    #  Analysis Pipeline                                                  #
+    # ------------------------------------------------------------------ #
+    def _load_image(self):
+        path = filedialog.askopenfilename(
+            title="Select Blood Smear",
+            filetypes=[("Images", "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"), ("All", "*.*")]
+        )
+        if path:
+            self._start_analysis(path)
+
+    def _start_analysis(self, path):
+        # Clear previous results
+        for w in self.feed_scroll.winfo_children():
+            w.destroy()
+        for w in self.ai_frame.winfo_children():
+            w.destroy()
+        self.ai_status_widget = None
+
+        self._display_image(path)
+        self.result_banner.configure(text="Processing...", text_color=THEME["warning"])
+        self.btn_load.configure(state="disabled")
+        threading.Thread(target=self._run_pipeline, args=(path,), daemon=True).start()
+
+    def _run_pipeline(self, path):
+        try:
+            self._safe_progress("Stage 1: Detecting cells...")
+            detection = detect_blasts(path, return_crops=True, return_all_cells=True)
+
+            # Update image with bounding boxes
+            if detection.get('annotated_image') is not None:
+                self.after(0, lambda: self._display_array(detection['annotated_image']))
+
+            # Populate results feed (all at once — no stagger = no tearing)
+            self.after(0, lambda: self._populate_results(detection))
+
+            # AI summary
+            blasts = [c for c in detection['detections'] if c.get('is_blast')]
+            if blasts:
+                self.after(0, self._show_ai_thinking)
+                for token in LLMGenerator.generate_explanation_stream(blasts):
+                    self.llm_queue.put(("token", token))
+                self.llm_queue.put(("done", None))
+
+            self._safe_progress("Analysis complete")
         except Exception as e:
-            return f"[Error] Could not generate summary: {e}"
-    
-    def _show_healthy_result(self, filepath, screening):
-        """Display healthy result."""
-        self.status_label.configure(text="Analysis complete")
-        self.progress_label.configure(text="")
-        
-        # Load and display image
-        self._display_image(filepath)
-        
-        # Update banner
-        confidence = screening['confidence'] * 100
-        self.result_banner.configure(
-            text=f"✅ HEALTHY ({confidence:.1f}% confidence)",
-            text_color="#44AA44"
-        )
-        
-        # Clear cell list
-        for widget in self.cell_list.winfo_children():
-            widget.destroy()
-        
-        info_label = ctk.CTkLabel(
-            self.cell_list,
-            text="No blast cells detected.\nImage classified as healthy.",
-            font=("Arial", 12),
-            text_color="#888888"
-        )
-        info_label.pack(pady=20)
-    
-    def _show_detection_results(self, filepath, detection, explanation=None):
-        """Display detection results using V5 classification (no TFLite screening)."""
-        self.status_label.configure(text="Analysis complete")
-        
-        blast_count = detection['blast_count']
-        total_cells = detection['total_cells']
-        tflite_pos = detection.get('tflite_positive_count', 0)
-        
-        self.progress_label.configure(text=f"Found {total_cells} cells, {blast_count} blast(s) (TF confirmed: {tflite_pos})")
-        
-        # Display annotated image
-        if 'annotated_image' in detection:
-            self._display_array_image(detection['annotated_image'])
-        else:
-            self._display_image(filepath)
-        
-        # Update banner based on TFLite (image-level) AND V5 (cell-level)
-        tflite_result = detection.get('tflite_result', {})
-        tflite_conf = tflite_result.get('confidence', 0) * 100 if tflite_result else 0
-        tflite_positive = tflite_result.get('positive', False) if tflite_result else False
-        
-        if tflite_positive or blast_count > 0:
-            # Show combined result
-            banner_text = f"⚠️ SUSPECTED ALL"
-            if tflite_result:
-                banner_text += f" (TFLite: {tflite_conf:.0f}%)"
-            if blast_count > 0:
-                banner_text += f" - {blast_count} Blast(s)"
-            self.result_banner.configure(text=banner_text, text_color="#FF4444")
-        else:
-            banner_text = f"✅ HEALTHY"
-            if tflite_result:
-                banner_text += f" (TFLite: {tflite_conf:.0f}%)"
-            banner_text += f" - {total_cells} cells analyzed"
-            self.result_banner.configure(text=banner_text, text_color="#44AA44")
-        
-        # Clear and populate cell list
-        for widget in self.cell_list.winfo_children():
-            widget.destroy()
-            
-        # Display AI Summary if available
-        if explanation:
-            summary_frame = ctk.CTkFrame(self.cell_list, fg_color="#333333", corner_radius=8)
-            summary_frame.pack(fill="x", padx=5, pady=(0, 10))
-            
-            title = ctk.CTkLabel(summary_frame, text="🤖 AI Summary", font=("Roboto Mono", 14, "bold"))
-            title.pack(anchor="w", padx=10, pady=(10, 5))
-            
-            text = ctk.CTkLabel(summary_frame, text=explanation, font=("Roboto Mono", 13), 
-                               wraplength=350, justify="left", text_color="#FFFFFF")
-            text.pack(anchor="w", padx=10, pady=(0, 10))
-        
-        if not detection['detections']:
-            info_label = ctk.CTkLabel(
-                self.cell_list,
-                text="No cells detected in image.",
-                font=("Arial", 12),
-                text_color="#888888"
+            traceback.print_exc()
+            self._safe_progress(f"Error: {str(e)[:40]}")
+        finally:
+            self.after(0, lambda: self.btn_load.configure(state="normal"))
+
+    # ------------------------------------------------------------------ #
+    #  Results Rendering                                                  #
+    # ------------------------------------------------------------------ #
+    def _populate_results(self, detection):
+        blast_cnt = detection['blast_count']
+        total = detection['total_cells']
+
+        # Banner
+        if blast_cnt > 0:
+            self.result_banner.configure(
+                text=f"⚠  SUSPECTED ALL — {blast_cnt} Blast(s) / {total} Cells",
+                text_color=THEME["danger"]
             )
-            info_label.pack(pady=20)
-            return
-        
-        # Sort: blasts first
+        else:
+            self.result_banner.configure(
+                text=f"✅  HEALTHY — {total} Cells Analyzed",
+                text_color=THEME["success"]
+            )
+
+        # Add all cards at once (no stagger = no tearing)
         cells = sorted(detection['detections'], key=lambda x: not x.get('is_blast', False))
-        
         for cell in cells:
-            crop = cell.get('crop', None)
-            card = CellCard(self.cell_list, cell, crop_image=crop)
-            card.pack(fill="x", padx=5, pady=5)
-    
-    def _display_image(self, filepath):
-        """Display image from file path."""
+            CellCard(self.feed_scroll, cell, crop_image=cell.get('crop')).pack(
+                fill="x", padx=8, pady=4)
+
+    def _show_ai_thinking(self):
+        """Set up AI frame with shimmer + scrollable text area."""
+        for w in self.ai_frame.winfo_children():
+            w.destroy()
+
+        # Shimmer dots status
+        self.ai_status_widget = AIStatusWidget(self.ai_frame)
+        self.ai_status_widget.pack(fill="x", padx=15, pady=(12, 6))
+
+        # Thin separator
+        ctk.CTkFrame(self.ai_frame, height=1, fg_color=THEME["border_color"]).pack(
+            fill="x", padx=15)
+
+        # Scrollable text area (properly contained)
+        self.ai_textbox = AITextBox(self.ai_frame)
+        self.ai_textbox.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+
+    # ------------------------------------------------------------------ #
+    #  Image Display                                                      #
+    # ------------------------------------------------------------------ #
+    def _display_image(self, path):
         try:
-            pil_img = Image.open(filepath)
-            self._display_pil_image(pil_img)
-        except Exception as e:
-            self.image_label.configure(text=f"Error loading image: {e}")
-    
-    def _display_array_image(self, img_array):
-        """Display image from numpy array (RGB)."""
+            self._display_pil(Image.open(path))
+        except Exception:
+            pass
+
+    def _display_array(self, arr):
         try:
-            pil_img = Image.fromarray(img_array)
-            self._display_pil_image(pil_img)
-        except Exception as e:
-            self.image_label.configure(text=f"Error displaying image: {e}")
-    
-    def _display_pil_image(self, pil_img):
-        """Display PIL image, scaling to fit panel."""
-        # Get available size
-        self.image_frame.update()
-        
-        # Cap size to avoid explosion (45% max)
-        max_w = min(self.image_frame.winfo_width(), self.winfo_width() * 0.45)
-        max_h = min(self.image_frame.winfo_height(), self.winfo_height() * 0.8)
-        
-        if max_w < 200 or max_h < 200:
-            max_w, max_h = 400, 400
-            
-        max_w = int(max_w - 20)
-        max_h = int(max_h - 20)
-        
-        # Scale image
-        img_w, img_h = pil_img.size
-        scale = min(max_w / img_w, max_h / img_h)
-        new_size = (int(img_w * scale), int(img_h * scale))
+            self._display_pil(Image.fromarray(arr))
+        except Exception:
+            pass
+
+    def _display_pil(self, pil_img):
+        self.image_frame.update_idletasks()
+        max_w = max(self.image_frame.winfo_width() - 20, 200)
+        max_h = max(self.image_frame.winfo_height() - 20, 200)
+
+        ratio = min(max_w / pil_img.width, max_h / pil_img.height)
+        new_size = (int(pil_img.width * ratio), int(pil_img.height * ratio))
         pil_img = pil_img.resize(new_size, Image.Resampling.LANCZOS)
-        
-        # Display
+
         ctk_img = ctk.CTkImage(pil_img, size=new_size)
-        self.image_label.configure(image=ctk_img, text="")
-        self.image_label.image = ctk_img  # Keep reference
+        self.img_label.configure(image=ctk_img, text="")
+        self.img_label.image = ctk_img
 
+    # ------------------------------------------------------------------ #
+    #  Thread-safe helpers                                                #
+    # ------------------------------------------------------------------ #
+    def _safe_status(self, text):
+        self.after(0, lambda: self.status_lbl.configure(text=text))
 
-def main():
-    app = ALLDetectionApp()
-    app.mainloop()
+    def _safe_progress(self, text):
+        self.after(0, lambda: self.progress_lbl.configure(text=text))
 
 
 if __name__ == "__main__":
-    main()
+    ctk.set_appearance_mode("dark")
+    app = ALLDetectionApp()
+    app.mainloop()

@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">ALL Detection</string>
+    <string name="action_capture">Capture Image</string>
+    <string name="action_gallery">Select from Gallery</string>
+    <string name="mode_basic">Basic Mode (TFLite)</string>
+    <string name="mode_pro">Pro Mode (Pi 5)</string>
+    <string name="status_ready">Ready for analysis</string>
+    <string name="status_processing">Processing...</string>
+    <string name="result_healthy">✅ Healthy</string>
+    <string name="result_all">⚠️ ALL Suspected</string>
+    <string name="error_pi_connection">Could not connect to Pi Server</string>
+</resources>

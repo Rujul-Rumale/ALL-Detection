@@ -1,66 +1,86 @@
-# ALL Detection Project
+# ALL Detection System
 
-Automated leukemia detection from blood microscope images.
+Automated Acute Lymphoblastic Leukemia (ALL) detection from peripheral blood smear images, powered by deep learning and on-device AI.
 
-## Overview
+## How It Works
 
-This project detects Acute Lymphoblastic Leukemia (ALL) from blood cell images using computer vision + deep learning.
+1. **Segmentation** — White blood cells are extracted from full blood smear images using K-Means clustering on the LAB color space
+2. **Classification** — Each cell is analyzed by a MobileNetV3 model (TFLite) to determine if it is a healthy WBC or a blast cell (suspected ALL)
+3. **AI Summary** — An on-device LLM (Phi-3 via Ollama) generates a clinical-style interpretation of the results
+4. **Visualization** — Results are displayed in a real-time dashboard with cell cards, annotations, and confidence scores
 
-**How it works:**
-1. Segment white blood cells using K-Means clustering on LAB color space
-2. Classify each cell as healthy or ALL using MobileNetV3
-3. Show results with Grad-CAM heatmaps (explainability)
+## Quick Start
 
-## Datasets Used
+### Desktop (Windows/Linux/macOS)
 
-- **C-NMC Dataset** - ~10,600 labeled cells for training (main dataset)
-- **ALL-IDB1** - For testing segmentation on full blood smear images
-
-See DATASETS.md for more info.
-
-## Running the Code
-
-### Test folder (MATLAB stuff - old demo)
-```bash
-cd test
-# Open test.m in MATLAB and run it
-```
-
-### Python Implementation
 ```bash
 pip install -r requirements.txt
-
-# View dataset info and samples
-python src/demo_dataset.py
-
-# Test WBC segmentation (opens file picker)
-python src/demo_segmentation.py
+cd src
+python ui/app.py
 ```
 
-## Current Status
+### Raspberry Pi 5
 
-✅ WBC segmentation working (K-means on a*b* channels)  
-✅ Dataset loader complete (3-fold CV ready)  
-✅ Fixed over-segmentation issue with bilobed nuclei  
-⏳ Model training script - next step  
-⏳ TFLite export for Pi deployment  
-⏳ Grad-CAM visualization  
+```bash
+chmod +x setup_pi.sh
+./setup_pi.sh    # Installs everything automatically
+./run.sh         # Launch the app
+```
+
+The setup script handles: Python dependencies, Ollama installation, model download, desktop shortcut.
 
 ## Project Structure
 
 ```
 src/
-├── segmentation/  - WBC segmentation (K-means)
-├── classifier/    - Dataset loader, will add model here
-├── utils/         - Visualization tools
-└── xai/           - Grad-CAM (todo)
+├── ui/                  # Desktop GUI (CustomTkinter)
+│   ├── app.py           # Main application
+│   └── theme.py         # Design system
+├── detection/           # Core detection pipeline
+│   ├── blast_detector_v5.py  # Cell detection + classification
+│   ├── llm_utils.py     # AI summary generation (Ollama)
+│   └── stage1_screening.py   # TFLite screening model
+├── segmentation/        # WBC segmentation (K-Means)
+├── classifier/          # Dataset loader + model definitions
+├── training/            # Model training scripts (reference)
+├── api/                 # REST API for Android app (planned)
+└── utils/               # Visualization, preprocessing utilities
+
+android_app/             # Android companion app (Jetpack Compose)
+models/                  # Trained model files (.tflite)
+data/                    # Reference images, processed data
+docs/                    # Research papers, technical docs
 ```
 
-More details in PROJECT_STRUCTURE.md
+## Datasets
 
-## To-Do
-- Train MobileNetV3 classifier
-- Export to TFLite (for raspberry pi)
-- Add Grad-CAM
-- Build inference pipeline
-- Make GUI maybe?
+| Dataset | Purpose | Details |
+|---------|---------|---------|
+| **C-NMC 2019** | Training | ~10,600 pre-cropped cell images (ALL vs Healthy) |
+| **ALL-IDB1** | Testing | Full blood smear images for end-to-end pipeline testing |
+
+See [DATASETS.md](DATASETS.md) for full details.
+
+## Hardware Targets
+
+- **Primary**: Raspberry Pi 5 (8GB) + 1080p display
+- **Secondary**: Android devices (via companion app)
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Detection Model | MobileNetV3 (TFLite) |
+| AI Summary | Phi-3 via Ollama |
+| Desktop GUI | CustomTkinter (Python) |
+| Android App | Jetpack Compose + Material 3 |
+| Segmentation | OpenCV, scikit-image |
+
+## Requirements
+
+See [requirements.txt](requirements.txt) for Python dependencies.
+
+**System Requirements:**
+- Python 3.10+
+- Ollama (for AI summaries)
+- 4GB+ RAM (8GB recommended for LLM)

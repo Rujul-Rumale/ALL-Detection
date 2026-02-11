@@ -6,14 +6,6 @@ Healthy_WBC_Dataset/
 # Archives
 archive/
 
-# MATLAB
-*.asv
-*.m~
-*.autosave
-*.slxc
-*.mex*
-codegen/
-
 # Python
 __pycache__/
 *.py[cod]
@@ -27,10 +19,11 @@ venv/
 dist/
 build/
 
-# Models
-models/*.tflite
+# Models (binary files) — allow production models
 models/*.h5
 models/*.pb
+models/checkpoints/
+!models/production/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -53,7 +46,22 @@ logs/
 checkpoints/
 wandb/
 
-# Internal docs (not for faculty)
+# Temp / runtime
+temp_uploads/
+output/
+
+# Android build artifacts
+*.hprof
+android_app/.gradle/
+android_app/build/
+android_app/app/build/
+android_app/local.properties
+
+# Internal working docs (not for repo)
 WORK_SUMMARY.md
 GIT_REWRITE_GUIDE.md
 PROGRESS.md
+
+# External reference repos (cloned for study)
+ALL-Arduino-Nano-33-BLE-Sense-Classifier/
+all-classifiers-2019/

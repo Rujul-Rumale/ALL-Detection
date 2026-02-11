@@ -31,12 +31,12 @@ class ALLScreener:
             model_path: Path to .tflite model. If None, uses default location.
         """
         if model_path is None:
-            # Default: assume model is in project root
+            # Default: models/production/ in project root
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
             model_path = os.path.join(
                 base_dir, 
-                "ALL-Arduino-Nano-33-BLE-Sense-Classifier",
-                "model",
+                "models",
+                "production",
                 "all_nano_33_ble_sense.tflite"
             )
         
