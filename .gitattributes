@@ -1,0 +1,15 @@
+# Auto detect text files and normalize line endings
+* text=auto
+
+# Force LF for shell scripts (critical for Linux/Pi)
+*.sh text eol=lf
+
+# Force LF for Python
+*.py text eol=lf
+
+# Binary files
+*.tflite binary
+*.png binary
+*.jpg binary
+*.bmp binary
+*.hprof binary
