@@ -25,12 +25,14 @@ echo ""
 # ─── 1. System packages ─────────────────────────────────────
 info "Installing system dependencies..."
 sudo apt-get update -qq
-sudo apt-get install -y -qq \
-    python3-pip python3-venv python3-dev \
-    python3-tk python3-pil python3-pil.imagetk \
-    libatlas-base-dev libhdf5-dev \
-    fonts-roboto \
-    curl
+
+# libopenblas-dev is more reliable on Pi OS Bookworm than libatlas-base-dev
+PACKAGES="python3-pip python3-venv python3-dev python3-tk python3-pil python3-pil.imagetk libopenblas-dev libhdf5-dev fonts-roboto curl gfortran"
+
+if ! sudo apt-get install -y -qq $PACKAGES; then
+    warn "Some individual packages failed. Attempting to install core dependencies only..."
+    sudo apt-get install -y python3-pip python3-venv python3-tk libopenblas-dev curl
+fi
 
 # ─── 2. Python virtual environment ──────────────────────────
 VENV_DIR="$HOME/all-detection-venv"
