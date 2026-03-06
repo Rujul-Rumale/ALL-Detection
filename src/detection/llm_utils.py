@@ -5,7 +5,7 @@ import threading
 import traceback
 
 # Default configuration for Raspberry Pi 5
-DEFAULT_MODEL = "phi3"  # Fits in 8GB RAM, reasonable speed
+DEFAULT_MODEL = "phi3"  # Fits in 4GB RAM, reasonable speed
 CONNECTION_TIMEOUT = 3.0 # Seconds
 OLLAMA_PORT = 11434
 
@@ -129,7 +129,7 @@ class LLMGenerator:
                     model=model,
                     messages=[{'role': 'user', 'content': prompt}],
                     stream=True,
-                    options={'num_predict': 100},  # Cap output for speed
+                    options={'num_predict': 500},  # Cap output for speed
                 )
                 print(f"[LLM] ollama.chat() returned stream object ({time.time()-t_chat:.1f}s)")
 
@@ -205,9 +205,9 @@ The system detected {count} suspected blast cell(s). Here are the measured param
 Averages: circularity={avg_circ*100:.0f}%, classifier_score={avg_score:.2f}
 
 RULES:
-- This is a PERIPHERAL BLOOD SMEAR, NOT a bone marrow biopsy.
-- Only refer to the data above. Do NOT invent findings not listed.
-- Write exactly 2 sentences: one describing what was found, one suggesting next steps.
+- This is a BLOOD SMEAr.
+- Only refer and explain the data above. Do NOT invent findings not listed.
+- Write exactly 3 sentences: one describing what was found and why it means positive, one suggesting next steps.
 - Use professional clinical tone. Be concise."""
 
     @staticmethod

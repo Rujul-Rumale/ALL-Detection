@@ -49,6 +49,7 @@ wandb/
 # Temp / runtime
 temp_uploads/
 output/
+outputs/
 
 # Android build artifacts
 *.hprof

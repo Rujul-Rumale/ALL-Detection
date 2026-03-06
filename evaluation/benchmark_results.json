@@ -1,0 +1,80 @@
+{
+  "Im001_1": {
+    "1_Dual_Threshold": {
+      "cells": 14,
+      "time_sec": 0.06
+    },
+    "2_Watershed": {
+      "cells": 15,
+      "time_sec": 3.037
+    },
+    "3_Production_KMeans": {
+      "cells": 12,
+      "blasts": 2,
+      "time_sec": 2.791
+    },
+    "4_YOLOv8": {
+      "cells": 1,
+      "time_sec": 0.313
+    },
+    "5_SAM": {
+      "masks": 262,
+      "time_sec": 53.071
+    },
+    "7_Cell_DETR": {
+      "pytorch_version": "2.10.0+cpu",
+      "cuda_available": false,
+      "status": "FAILED - Environment Incompatible",
+      "reason": "Cell-DETR requires NVIDIA GPU + PyTorch 1.0.0 + custom C++ CUDA Deformable Conv V2 kernels. Cannot run on CPU-only or modern PyTorch.",
+      "time_sec": 0
+    },
+    "8_UNet": {
+      "semantic_regions": 2,
+      "time_sec": 3.719
+    },
+    "6_Cellpose": {
+      "status": "SKIPPED - CPU Timeout",
+      "reason": "Cellpose gradient-flow inference exceeds available CPU memory/time on 2K blood smear images. Process hangs indefinitely.",
+      "time_sec": "N/A (>10 min)"
+    }
+  },
+  "Im003_1": {
+    "1_Dual_Threshold": {
+      "cells": 13,
+      "time_sec": 0.042
+    },
+    "2_Watershed": {
+      "cells": 14,
+      "time_sec": 0.954
+    },
+    "3_Production_KMeans": {
+      "cells": 10,
+      "blasts": 4,
+      "time_sec": 0.478
+    },
+    "4_YOLOv8": {
+      "cells": 1,
+      "time_sec": 0.305
+    },
+    "5_SAM": {
+      "masks": 277,
+      "time_sec": 48.164
+    },
+    "7_Cell_DETR": {
+      "pytorch_version": "2.10.0+cpu",
+      "cuda_available": false,
+      "status": "FAILED - Environment Incompatible",
+      "reason": "Cell-DETR requires NVIDIA GPU + PyTorch 1.0.0 + custom C++ CUDA Deformable Conv V2 kernels. Cannot run on CPU-only or modern PyTorch.",
+      "time_sec": 0
+    },
+    "8_UNet": {
+      "semantic_regions": 2,
+      "time_sec": 3.909
+    },
+    "6_Cellpose": {
+      "status": "SKIPPED - CPU Timeout",
+      "reason": "Cellpose gradient-flow inference exceeds available CPU memory/time on 2K blood smear images. Process hangs indefinitely.",
+      "time_sec": "N/A (>10 min)"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+CV Splits Audit Report
+Generated: 2026-03-06T01:35:07.349388Z
+Total images: 12528
+Total patients: 101
+======================================================================
+
+FOLD 1 as VALIDATION (train on folds [2, 3])
+  Train: 5366 ALL + 2698 HEM = 8064 total
+  Val:   3125 ALL + 1339 HEM = 4464 total
+  Train patients: 63
+  Val patients:   38
+  LEAKAGE CHECK: PASSED (0 shared patients)
+
+FOLD 2 as VALIDATION (train on folds [1, 3])
+  Train: 5790 ALL + 2564 HEM = 8354 total
+  Val:   2701 ALL + 1473 HEM = 4174 total
+  Train patients: 78
+  Val patients:   23
+  LEAKAGE CHECK: PASSED (0 shared patients)
+
+FOLD 3 as VALIDATION (train on folds [1, 2])
+  Train: 5826 ALL + 2812 HEM = 8638 total
+  Val:   2665 ALL + 1225 HEM = 3890 total
+  Train patients: 61
+  Val patients:   40
+  LEAKAGE CHECK: PASSED (0 shared patients)
+
+======================================================================
+ALL LEAKAGE CHECKS: PASSED

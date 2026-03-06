@@ -1,0 +1,72 @@
+{
+  "image": "c:\\Open Source\\leukiemea\\ALL_IDB\\ALL_IDB Dataset\\L2\\Im003_1.jpg",
+  "total_cells": 10,
+  "blast_count": 4,
+  "normal_count": 5,
+  "detections": [
+    {
+      "id": 2,
+      "bbox": [
+        377,
+        212,
+        48,
+        57
+      ],
+      "area": 2076,
+      "circularity": 0.819,
+      "eccentricity": 0.619,
+      "homogeneity": 0.826,
+      "score": 3.42,
+      "classification": "BLAST (L1)",
+      "is_blast": true
+    },
+    {
+      "id": 6,
+      "bbox": [
+        318,
+        270,
+        54,
+        51
+      ],
+      "area": 2088,
+      "circularity": 0.894,
+      "eccentricity": 0.403,
+      "homogeneity": 0.838,
+      "score": 3.55,
+      "classification": "BLAST (L1)",
+      "is_blast": true
+    },
+    {
+      "id": 9,
+      "bbox": [
+        324,
+        428,
+        55,
+        52
+      ],
+      "area": 2095,
+      "circularity": 0.876,
+      "eccentricity": 0.388,
+      "homogeneity": 0.845,
+      "score": 3.53,
+      "classification": "BLAST (L1)",
+      "is_blast": true
+    },
+    {
+      "id": 10,
+      "bbox": [
+        89,
+        568,
+        49,
+        54
+      ],
+      "area": 1999,
+      "circularity": 0.85,
+      "eccentricity": 0.519,
+      "homogeneity": 0.836,
+      "score": 3.48,
+      "classification": "BLAST (L1)",
+      "is_blast": true
+    }
+  ]
+}

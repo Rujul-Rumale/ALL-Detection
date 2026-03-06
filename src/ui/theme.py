@@ -21,6 +21,12 @@ THEME = {
     "success": "#40C057",    # Emerald (Healthy Status)
     "warning": "#FFAA00",    # Orange (Processing/Loading)
     
+    # Cell Classification
+    "blast_border": "#FF4D4D",   # Red border for blast cells
+    "healthy_border": "#40C057", # Green border for healthy cells
+    "debris_border": "#FFAA00",  # Amber border for debris
+    "chart_bg": "#1E1F23",       # Slightly darker for chart areas
+    
     # Typography
     "text": "#E9ECEF",       # Off-White (Primary Text)
     "text_dim": "#909296",   # Muted Gray (Secondary Text)
@@ -28,6 +34,7 @@ THEME = {
     # Fonts
     "font_main": ("Roboto", 14),
     "font_sm": ("Roboto", 12),
+    "font_xs": ("Roboto", 10),
     "font_header": ("Roboto", 20, "bold"),
     "font_hero": ("Roboto", 28, "bold"),
     "font_mono": ("JetBrains Mono", 13),

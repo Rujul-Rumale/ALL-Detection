@@ -69,7 +69,8 @@ class CellCard(ModernCard):
         ).grid(row=0, column=1, sticky="sw", padx=(0, 10), pady=(10, 2))
 
         # Metrics
-        metrics = f"Circ: {cell_data['circularity']*100:.0f}%  |  Score: {cell_data['score']:.2f}"
+        confidence = cell_data.get('confidence', cell_data.get('score', 0))
+        metrics = f"Circ: {cell_data.get('circularity', 0)*100:.0f}%  |  TFLite Conf: {confidence*100:.1f}%"
         ctk.CTkLabel(
             self, text=metrics,
             font=THEME["font_sm"], text_color=THEME["text_dim"]

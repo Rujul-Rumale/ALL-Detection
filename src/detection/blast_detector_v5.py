@@ -190,10 +190,23 @@ def detect_blasts(image_path, visualize=False, output_json=None, return_crops=Fa
         'annotated_image': annotated_img  # RGB numpy array with bounding boxes
     }
     
-    # Save JSON output
+    # Save JSON output (removing non-serializable objects)
     if output_json:
+        # Create a serializable copy of the result
+        serializable_result = result.copy()
+        if 'annotated_image' in serializable_result:
+            del serializable_result['annotated_image']
+        
+        # Also clean up detections if they have crops (numpy arrays)
+        serializable_result['detections'] = []
+        for det in result['detections']:
+            clean_det = det.copy()
+            if 'crop' in clean_det:
+                del clean_det['crop']
+            serializable_result['detections'].append(clean_det)
+
         with open(output_json, 'w') as f:
-            json.dump(result, f, indent=2)
+            json.dump(serializable_result, f, indent=2)
         print(f"\nDetections saved to: {output_json}")
     
     # Visualization
