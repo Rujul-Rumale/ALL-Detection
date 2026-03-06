@@ -105,3 +105,32 @@ See [requirements.txt](requirements.txt) for Python dependencies.
 - Python 3.10+
 - Ollama (for AI summaries)
 - 4GB+ RAM (8GB recommended for LLM + SAM)
+
+## Citations & References
+
+### Datasets
+
+- **C-NMC 2019 (ISBI Challenge):** Gupta, A., & Gupta, R. (2019). *ALL Challenge dataset of ISBI 2019* [Data set]. The Cancer Imaging Archive. https://doi.org/10.7937/tcia.2019.dc64i46r
+- **ALL-IDB:** Labati, R. D., Piuri, V., & Scotti, F. (2011). *ALL-IDB: The Acute Lymphoblastic Leukemia Image Database for Image Processing.* Proceedings of the IEEE International Conference on Image Processing (ICIP), pp. 2045–2048.
+
+### Models & Architectures
+
+- **MobileNetV3:** Howard, A., et al. (2019). *Searching for MobileNetV3.* Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 1314–1324.
+- **EfficientNet:** Tan, M., & Le, Q. V. (2019). *EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks.* Proceedings of the 36th International Conference on Machine Learning (ICML), pp. 6105–6114.
+- **Segment Anything (SAM):** Kirillov, A., et al. (2023). *Segment Anything.* Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 4015–4026.
+- **Knowledge Distillation:** Hinton, G., Vinyals, O., & Dean, J. (2015). *Distilling the Knowledge in a Neural Network.* arXiv preprint arXiv:1503.02531.
+
+### Frameworks & Libraries
+
+- **PyTorch:** Paszke, A., et al. (2019). *PyTorch: An Imperative Style, High-Performance Deep Learning Library.* Advances in Neural Information Processing Systems (NeurIPS), 32.
+- **timm:** Wightman, R. (2019). *PyTorch Image Models (timm).* GitHub. https://github.com/huggingface/pytorch-image-models
+- **Albumentations:** Buslaev, A., et al. (2020). *Albumentations: Fast and Flexible Image Augmentations.* Information, 11(2), 125.
+- **scikit-learn:** Pedregosa, F., et al. (2011). *Scikit-learn: Machine Learning in Python.* Journal of Machine Learning Research, 12, pp. 2825–2830.
+- **OpenCV:** Bradski, G. (2000). *The OpenCV Library.* Dr. Dobb's Journal of Software Tools.
+- **Ollama / Phi-3:** Microsoft. (2024). *Phi-3 Technical Report: A Highly Capable Language Model Locally on Your Phone.* arXiv preprint arXiv:2404.14219.
+
+### Methods
+
+- **Watershed Segmentation:** Meyer, F. (1994). *Topographic distance and watershed lines.* Signal Processing, 38(1), 113–125.
+- **Macenko Stain Normalization:** Macenko, M., et al. (2009). *A Method for Normalizing Histology Slides for Quantitative Analysis.* Proceedings of the IEEE International Symposium on Biomedical Imaging (ISBI), pp. 1107–1110.
+- **Test-Time Augmentation (TTA):** Shanmugam, D., et al. (2021). *Better Aggregation in Test-Time Augmentation.* Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 1214–1223.
