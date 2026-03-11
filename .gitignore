@@ -5,6 +5,8 @@ Healthy_WBC_Dataset/
 
 # Archives
 archive/
+_OLD/
+_old/
 
 # Python
 __pycache__/
