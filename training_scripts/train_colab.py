@@ -447,8 +447,7 @@ def get_loaders(args, root_path=""):
     train_ds = CNMCDataset(fold_data["train_images"], target_size=args.res + 64, root_path=root_path, is_train=True,  cache_in_ram=True)
     val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False, cache_in_ram=True)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
-    sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2)
     info = {"train_total": len(fold_data["train_images"]), "val_total": len(fold_data["val_images"]),
             "train_all": sum(1 for _, l in fold_data["train_images"] if l == 0), "train_hem": sum(1 for _, l in fold_data["train_images"] if l == 1),
