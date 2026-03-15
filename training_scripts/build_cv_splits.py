@@ -44,7 +44,29 @@ from datetime import datetime
 # ── Paths ─────────────────────────────────────────────────────────────────────
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PKG_BASE     = os.path.join(PROJECT_ROOT, "C-NMC_Dataset", "PKG - C-NMC 2019")
+# ── Dataset Auto-Detection ──────────────────────────────────────────────────
+def find_pkg_base():
+    """
+    Search for the CNMC dataset root in common environment locations.
+    """
+    candidates = [
+        # Kaggle Official
+        "/kaggle/input/c-nmc-2019-dataset/C-NMC 2019 (PKG)",
+        "/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC 2019 (PKG)",
+        # Standard Local/Colab structure
+        os.path.join(PROJECT_ROOT, "C-NMC_Dataset", "PKG - C-NMC 2019"),
+        "/content/ALL-Detection/C-NMC_Dataset/PKG - C-NMC 2019",
+        "/content/C-NMC_Dataset/PKG - C-NMC 2019",
+    ]
+    for cand in candidates:
+        if os.path.exists(cand):
+            print(f"  FOUND DATASET ROOT: {cand}")
+            return cand
+            
+    # Fallback to default if not found (will error cleanly later)
+    return candidates[2]
+
+PKG_BASE     = find_pkg_base()
 TRAIN_BASE   = os.path.join(PKG_BASE, "C-NMC_training_data")
 PRELIM_BASE  = os.path.join(PKG_BASE, "C-NMC_test_prelim_phase_data")
 PRELIM_CSV   = os.path.join(PRELIM_BASE, "C-NMC_test_prelim_phase_data_labels.csv")
