@@ -18,7 +18,6 @@ import subprocess
 from datetime import datetime
 
 import cv2
-cv2.setNumThreads(0)
 import numpy as np
 
 import torch
@@ -369,8 +368,8 @@ def get_loaders(args, root_path=""):
     val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4)
     normed_weights = len(class_counts) / (class_counts * 2.0)
     info = {"train_total": len(fold_data["train_images"]), "val_total": len(fold_data["val_images"]),
             "train_all": sum(1 for _, l in fold_data["train_images"] if l == 0), "train_hem": sum(1 for _, l in fold_data["train_images"] if l == 1),
@@ -482,7 +481,6 @@ def main():
             batch_progress.reset(batch_task, description=f"  [yellow]Batch 0/{len(train_loader)}[/yellow]")
         else:
             print(f"\n--- Epoch {epoch}/{args.epochs} ---")
-            print("⏳ Initializing DataWorkers (loading first batch)...")
             
         train_l, train_a = train_one_epoch(model, CUDAPrefetcher(train_loader, device), criterion, optimizer, scaler, device, True, train_tf, coarse_dropout, model_ema, batch_progress, batch_task, no_live=args.no_live)
         tta = 8 if epoch == args.epochs else 4 if epoch % 5 == 0 else 1
@@ -498,18 +496,26 @@ def main():
         line = (
             f"E {epoch:>3}/{args.epochs} | "
             f"TrL={train_l:.4f} TrA={train_a:.4f} | "
-            f"VlA={acc:.4f} F1={f1:.4f} Se={sens:.4f} Sp={spec:.4f} AUC={auc:.4f} | "
+            f"VlA={acc:.4f} F1={f1:.4f} "
+            f"Se={sens:.4f} Sp={spec:.4f} AUC={auc:.4f} | "
             f"bLR={ui_state['bLR']:.6f} hLR={ui_state['hLR']:.6f} | "
             f"{ep_t}s | ETA {ui_state['eta']} | "
-            f"pat={patience_counter}/{args.patience}{' *BEST' if cur['auc']==best_auc else ''}"
+            f"pat={patience_counter}/{args.patience}"
+            f"{' * BEST' if cur['auc']==best_auc else ''}"
         )
         with open(metrics_path, "a") as f: f.write(f"{epoch},{train_l:.4f},{train_a:.4f},{val_l:.4f},{acc:.4f},{auc:.4f},{sens:.4f},{spec:.4f},{f1:.4f},{ep_t}\n")
         return line
 
     if args.no_live:
-        for e in range(1, args.epochs + 1):
-            line = run_epoch(e); print(line); logger.info(line)
-            if patience_counter >= args.patience and e >= 80: break
+        print(f"\n{'='*70}")
+        print(f"  TRAINING (no-live mode) | {run_id}")
+        print(f"  Guaranteed epochs: {args.epochs} | Then patience: {args.patience}")
+        print(f"{'='*70}")
+        for e in range(1, args.epochs + 100): # Allow patience phase
+            line = run_epoch(e); logger.info(line)
+            if e > args.epochs and patience_counter >= args.patience:
+                print(f"Early stopping at epoch {e}")
+                break
     else:
         with Live(Dashboard(), refresh_per_second=4, console=console) as live:
             for e in range(1, args.epochs + 1):
