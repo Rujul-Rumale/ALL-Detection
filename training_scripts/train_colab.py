@@ -88,19 +88,37 @@ def setup_logging(output_dir, run_id):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Dataset  --  CPU workers do: read -> resize -> cheap augments -> CHW tensor
+#  Path Discovery
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def discover_dataset_root():
+    """Finds the dataset root once in the main process."""
+    print("🔍 Discovering dataset root...")
+    candidates = [
+        "/kaggle/input",
+        "/content/drive/MyDrive",
+        "/content",
+        os.getcwd(),
+        os.path.dirname(os.getcwd())
+    ]
+    for root_cand in candidates:
+        if not os.path.exists(root_cand): continue
+        # Search for the anchor folder
+        for root, dirs, _ in os.walk(root_cand):
+            if "C-NMC_training_data" in dirs:
+                print(f"✅ Discovered Root: {root}")
+                return root
+    return ""
+
 class CNMCDataset(Dataset):
-    def __init__(self, image_label_pairs, target_size: int, is_train: bool = True):
+    def __init__(self, image_label_pairs, target_size: int, root_path: str = "", is_train: bool = True):
         self.samples     = image_label_pairs
         self.target_size = target_size
+        self.root_path   = root_path
         self.is_train    = is_train
 
     def __len__(self):
         return len(self.samples)
-
-    _ROOT_CACHE = None
 
     def _normalize_path(self, path: str):
         # Convert any style path to Linux/Forward slash
@@ -110,41 +128,17 @@ class CNMCDataset(Dataset):
         if os.path.exists(orig_path):
             return orig_path
             
-        # 2. Lazy discovery of Kaggle/Colab root
-        if CNMCDataset._ROOT_CACHE is None:
-            print("🔍 Discovering dataset root...")
-            candidates = [
-                "/kaggle/input",
-                "/content/drive/MyDrive",
-                "/content",
-                os.getcwd(),
-                os.path.dirname(os.getcwd())
-            ]
-            for root_cand in candidates:
-                if not os.path.exists(root_cand): continue
-                # Search for the anchor folder
-                for root, dirs, _ in os.walk(root_cand):
-                    if "C-NMC_training_data" in dirs:
-                        CNMCDataset._ROOT_CACHE = root
-                        print(f"✅ Discovered Root: {root}")
-                        break
-                if CNMCDataset._ROOT_CACHE: break
-            
-            if CNMCDataset._ROOT_CACHE is None:
-                CNMCDataset._ROOT_CACHE = "" # Avoid re-scanning
-
-        # 3. Extract relative part and join with discovered root
+        # 2. Extract relative part and join with discovered root
         anchors = ["C-NMC_training_data", "C-NMC_test_prelim_phase_data"]
         for anchor in anchors:
             if anchor in orig_path:
                 rel_part = anchor + orig_path.split(anchor)[-1]
-                if CNMCDataset._ROOT_CACHE:
-                    # In some environments, the anchor is ALREADY inside the cache
-                    # e.g. Cache = .../C-NMC 2019 (PKG), Rel = C-NMC_training_data/...
-                    cand = os.path.join(CNMCDataset._ROOT_CACHE, rel_part)
+                if self.root_path:
+                    # Try directly under discovered root
+                    cand = os.path.join(self.root_path, rel_part)
                     if os.path.exists(cand): return cand
-                    # Try parent if cache was a subfolder
-                    cand = os.path.join(os.path.dirname(CNMCDataset._ROOT_CACHE), rel_part)
+                    # Try parent (if root was pointed to PKG folder)
+                    cand = os.path.join(os.path.dirname(self.root_path), rel_part)
                     if os.path.exists(cand): return cand
                 break
                     
@@ -367,11 +361,11 @@ def get_model(args):
 #  Data Loading
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_loaders(args):
+def get_loaders(args, root_path=""):
     with open(args.splits_json, "r") as f: splits = json.load(f)
     fold_key = f"fold_{args.fold}"; fold_data = splits["folds"][fold_key]
-    train_ds = CNMCDataset(fold_data["train_images"], target_size=args.res + 64, is_train=True)
-    val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      is_train=False)
+    train_ds = CNMCDataset(fold_data["train_images"], target_size=args.res + 64, root_path=root_path, is_train=True)
+    val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4, drop_last=True)
@@ -439,9 +433,13 @@ def main():
     args = parse_args(); console = Console(force_terminal=True)
     run_id = f"{args.run_name}_fold{args.fold}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     out_dir = os.path.join(args.output_root, args.run_name); logger = setup_logging(out_dir, run_id)
+    
+    # Discovery once
+    ds_root = discover_dataset_root()
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_num_threads(8); torch.backends.cudnn.benchmark = True; torch.set_float32_matmul_precision("high")
-    train_loader, val_loader, loss_weights, class_counts, data_info = get_loaders(args)
+    train_loader, val_loader, loss_weights, class_counts, data_info = get_loaders(args, root_path=ds_root)
     model, backbone_params, head_params, timm_name, in_feat = get_model(args)
     model = model.to(device).to(memory_format=torch.channels_last)
     train_tf, val_tf = get_gpu_transforms(args.res, device); coarse_dropout = GPUCoarseDropout().to(device)
