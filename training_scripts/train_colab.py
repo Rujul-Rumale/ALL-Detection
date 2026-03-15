@@ -181,22 +181,10 @@ class CNMCDataset(Dataset):
         else:
             image = np.array(Image.open(fpath).convert("RGB"))
 
-        image = cv2.resize(
-            image,
-            (self.target_size, self.target_size),
-            interpolation=cv2.INTER_AREA,
-        )
-
         if self.is_train:
-            if random.random() < 0.5: image = image[:, ::-1, :]
-            if random.random() < 0.5: image = image[::-1, :, :]
-            if random.random() < 0.5:
-                k = random.randint(1, 3)
-                image = np.rot90(image, k)
-            if random.random() < 0.3:
-                alpha = 1.0 + random.uniform(-0.15, 0.15)
-                beta  = random.uniform(-10, 10)
-                image = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+            image = cv2.resize(image, (self.target_size + 32, self.target_size + 32), interpolation=cv2.INTER_LINEAR)
+        else:
+            image = cv2.resize(image, (self.target_size, self.target_size), interpolation=cv2.INTER_LINEAR)
 
         image = np.ascontiguousarray(image)
         tensor = torch.from_numpy(image.transpose(2, 0, 1))
@@ -240,15 +228,26 @@ class SafeNormalize(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return (x - self.mean) / self.std
 
-def get_gpu_transforms(res: int, device: torch.device):
+def get_gpu_transforms(res: int, device: torch.device, fast_aug: bool = False):
     mean = torch.tensor([0.485, 0.456, 0.406], device=device)
     std  = torch.tensor([0.229, 0.224, 0.225], device=device)
-    train_tf = nn.Sequential(
+    
+    augs = [
         K.RandomCrop((res, res)),
-        K.RandomAffine(degrees=0, shear=[-10.0, 10.0, -10.0, 10.0], scale=[0.9, 1.1], p=0.5),
-        K.RandomElasticTransform(kernel_size=(63, 63), sigma=(10.0, 10.0), alpha=(1.0, 1.0), p=0.3),
-        SafeNormalize(mean=mean, std=std),
-    ).to(device)
+        K.RandomHorizontalFlip(p=0.5),
+        K.RandomVerticalFlip(p=0.5),
+        K.RandomRotation(degrees=90.0, p=0.5),
+        K.RandomAffine(degrees=0.0, shear=[-10.0, 10.0, -10.0, 10.0], scale=[0.9, 1.1], p=0.5),
+    ]
+    
+    if not fast_aug:
+        augs.append(K.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=0.5))
+        augs.append(K.RandomElasticTransform(kernel_size=(31, 31), sigma=(5.0, 5.0), alpha=(1.0, 1.0), p=0.2))
+        augs.append(K.RandomGaussianBlur((3, 3), (1.5, 1.5), p=0.2))
+        
+    augs.append(SafeNormalize(mean=mean, std=std))
+    
+    train_tf = nn.Sequential(*augs).to(device)
     val_tf = nn.Sequential(SafeNormalize(mean=mean, std=std)).to(device)
     return train_tf, val_tf
 
@@ -465,7 +464,7 @@ def main():
     train_loader, val_loader, loss_weights, class_counts, data_info = get_loaders(args, root_path=ds_root)
     model, backbone_params, head_params, timm_name, in_feat = get_model(args)
     model = model.to(device).to(memory_format=torch.channels_last)
-    train_tf, val_tf = get_gpu_transforms(args.res, device); coarse_dropout = GPUCoarseDropout().to(device)
+    train_tf, val_tf = get_gpu_transforms(args.res, device, args.fast_aug); coarse_dropout = GPUCoarseDropout().to(device)
     model_ema = ModelEmaV2(model, decay=0.9998, device=device)
     
     # Unfreeze Phase 0
