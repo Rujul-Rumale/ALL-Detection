@@ -539,7 +539,7 @@ def main():
     logger.info("=" * 70)
 
     criterion = AsymmetricFocalLoss(
-        alpha=[0.25, 0.75],
+        alpha=None,
         gamma=2.0,
         eps=1e-7,
     )
