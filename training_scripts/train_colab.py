@@ -414,11 +414,10 @@ def get_loaders(args, root_path=""):
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2)
-    normed_weights = len(class_counts) / (class_counts * 2.0)
     info = {"train_total": len(fold_data["train_images"]), "val_total": len(fold_data["val_images"]),
             "train_all": sum(1 for _, l in fold_data["train_images"] if l == 0), "train_hem": sum(1 for _, l in fold_data["train_images"] if l == 1),
             "val_all": sum(1 for _, l in fold_data["val_images"] if l == 0), "val_hem": sum(1 for _, l in fold_data["val_images"] if l == 1)}
-    return train_loader, val_loader, torch.tensor(normed_weights, dtype=torch.float32), class_counts, info
+    return train_loader, val_loader, class_counts, info
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -483,7 +482,7 @@ def main():
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_num_threads(2); torch.backends.cudnn.benchmark = True; torch.set_float32_matmul_precision("high")
-    train_loader, val_loader, loss_weights, class_counts, data_info = get_loaders(args, root_path=ds_root)
+    train_loader, val_loader, class_counts, data_info = get_loaders(args, root_path=ds_root)
     model, backbone_params, head_params, timm_name, in_feat = get_model(args)
     model = model.to(device).to(memory_format=torch.channels_last)
     train_tf, val_tf = get_gpu_transforms(args.res, device, args.fast_aug); coarse_dropout = GPUCoarseDropout().to(device)
@@ -503,7 +502,7 @@ def main():
     logger.info(f"  Workers:         {args.num_workers}")
     logger.info("=" * 70)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing, weight=loss_weights.to(device))
+    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = optim.AdamW([
         {"params": filter(lambda p: p.requires_grad, model[0].parameters()), "lr": args.lr_backbone}, 
         {"params": model[1].parameters(), "lr": args.lr_head}
