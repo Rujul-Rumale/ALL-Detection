@@ -225,9 +225,10 @@ class MetricMonitor:
     def update(self, val, n=1):
         self.val = val; self.sum += val * n; self.count += n; self.avg = self.sum / self.count
 
-def train_one_epoch(model, loader, criterion, optimizer, scaler, device, use_amp, train_tf, coarse_dropout, model_ema, progress, task_id):
+def train_one_epoch(model, loader, criterion, optimizer, scaler, device, use_amp, train_tf, coarse_dropout, model_ema, progress, task_id, no_live=False):
     model.train(); coarse_dropout.train()
     monitor = MetricMonitor(); correct = total = current_batch = 0
+    num_batches = len(loader)
     for images, labels in loader:
         images = train_tf(images.contiguous())
         images = coarse_dropout(images)
@@ -249,7 +250,13 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, use_amp
         monitor.update(loss.item(), images.size(0))
         preds = outputs.argmax(dim=1)
         correct += (preds == labels).sum().item(); total += labels.size(0); current_batch += 1
-        progress.update(task_id, advance=1, description=f"  [yellow]Batch {current_batch}/{len(loader)}[/yellow]")
+        
+        if no_live:
+            if current_batch % 10 == 0 or current_batch == num_batches:
+                print(f"    Batch {current_batch}/{num_batches} | Loss: {monitor.avg:.4f} | Acc: {correct/total:.4f}")
+        else:
+            progress.update(task_id, advance=1, description=f"  [yellow]Batch {current_batch}/{num_batches}[/yellow]")
+            
     return monitor.avg, correct / total if total > 0 else 0
 
 def validate(model, loader, criterion, device, use_amp, val_tf, tta_ways=8):
@@ -388,6 +395,17 @@ def main():
     train_tf, val_tf = get_gpu_transforms(args.res, device); coarse_dropout = GPUCoarseDropout().to(device)
     model_ema = ModelEmaV2(model, decay=0.9998, device=device)
     
+    # --- IDENTITY BLOCK ---
+    logger.info("=" * 70)
+    logger.info(f"  Run ID:          {run_id}")
+    logger.info(f"  Model:           {args.model} ({timm_name})")
+    logger.info(f"  Fold:            {args.fold}")
+    logger.info(f"  Resolution:      {args.res}x{args.res}")
+    logger.info(f"  Batch Size:      {args.batch_size}")
+    logger.info(f"  Device:          {device}")
+    logger.info(f"  Workers:         {args.num_workers}")
+    logger.info("=" * 70)
+
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing, weight=loss_weights.to(device))
     optimizer = optim.AdamW([{"params": backbone_params, "lr": args.lr_backbone}, {"params": head_params, "lr": args.lr_head}], weight_decay=args.weight_decay)
     scheduler = SequentialLR(optimizer, schedulers=[LinearLR(optimizer, 0.1, total_iters=WARMUP_EPOCHS), CosineAnnealingLR(optimizer, args.epochs-WARMUP_EPOCHS)], milestones=[WARMUP_EPOCHS])
@@ -409,8 +427,12 @@ def main():
     def run_epoch(epoch):
         nonlocal best_auc, patience_counter, best_state
         t0 = time.time(); ui_state["epoch"] = epoch
-        if not args.no_live: batch_progress.reset(batch_task, description=f"  [yellow]Batch 0/{len(train_loader)}[/yellow]")
-        train_l, train_a = train_one_epoch(model, CUDAPrefetcher(train_loader, device), criterion, optimizer, scaler, device, True, train_tf, coarse_dropout, model_ema, batch_progress, batch_task)
+        if not args.no_live:
+            batch_progress.reset(batch_task, description=f"  [yellow]Batch 0/{len(train_loader)}[/yellow]")
+        else:
+            print(f"\n--- Epoch {epoch}/{args.epochs} ---")
+            
+        train_l, train_a = train_one_epoch(model, CUDAPrefetcher(train_loader, device), criterion, optimizer, scaler, device, True, train_tf, coarse_dropout, model_ema, batch_progress, batch_task, no_live=args.no_live)
         tta = 8 if epoch == args.epochs else 4 if epoch % 5 == 0 else 1
         val_l, acc, auc, sens, spec, f1 = validate(model_ema.module, CUDAPrefetcher(val_loader, device), criterion, device, True, val_tf, tta)
         scheduler.step(); ep_t = int(time.time()-t0); epoch_times.append(ep_t); ui_state["time_ep"] = f"{ep_t}s"
