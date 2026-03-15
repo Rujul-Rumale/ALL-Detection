@@ -22,6 +22,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import timm
 import psutil
@@ -228,6 +229,41 @@ class SafeNormalize(nn.Module):
         self.register_buffer("std",  std.view(1, -1, 1, 1))
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return (x - self.mean) / self.std
+
+class AsymmetricFocalLoss(nn.Module):
+    """
+    Asymmetric Focal Loss with per-class weighting.
+    Penalizes hard examples exponentially, and HEM
+    misclassification more than ALL.
+    alpha: [alpha_ALL, alpha_HEM] - higher value penalizes
+           that class more
+    gamma: focal weight exponent (2.0 is standard)
+    eps:   numerical stability for clamping p_t
+    """
+    def __init__(self, alpha=None, gamma=2.0, eps=1e-7):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.eps   = eps
+
+    def forward(self, logits, targets):
+        log_probs = F.log_softmax(logits, dim=1)
+        probs     = torch.exp(log_probs)
+        targets_one_hot = F.one_hot(targets,
+                                    num_classes=2).float()
+        p_t = (probs * targets_one_hot).sum(dim=1).clamp(
+            self.eps, 1.0 - self.eps)
+        focal_term = (1.0 - p_t) ** self.gamma
+        loss = -log_probs.gather(
+            1, targets.unsqueeze(1)).squeeze(1)
+        loss = focal_term * loss
+        if self.alpha is not None:
+            alpha_t = torch.tensor(
+                self.alpha, device=logits.device,
+                dtype=torch.float32)
+            alpha_weights = alpha_t[targets]
+            loss = alpha_weights * loss
+        return loss.mean()
 
 def get_gpu_transforms(res: int, device: torch.device, fast_aug: bool = False):
     mean = torch.tensor([0.485, 0.456, 0.406], device=device)
@@ -502,7 +538,11 @@ def main():
     logger.info(f"  Workers:         {args.num_workers}")
     logger.info("=" * 70)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+    criterion = AsymmetricFocalLoss(
+        alpha=[0.25, 0.75],
+        gamma=2.0,
+        eps=1e-7,
+    )
     optimizer = optim.AdamW([
         {"params": filter(lambda p: p.requires_grad, model[0].parameters()), "lr": args.lr_backbone}, 
         {"params": model[1].parameters(), "lr": args.lr_head}
