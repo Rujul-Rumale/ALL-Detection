@@ -100,6 +100,8 @@ class CNMCDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
+    _ROOT_CACHE = None
+
     def _normalize_path(self, path: str):
         # Convert any style path to Linux/Forward slash
         orig_path = path.replace("\\", "/")
@@ -108,34 +110,43 @@ class CNMCDataset(Dataset):
         if os.path.exists(orig_path):
             return orig_path
             
-        # 2. Extract the relative part after the dataset root
-        # We look for the main subfolders as anchors
+        # 2. Lazy discovery of Kaggle/Colab root
+        if CNMCDataset._ROOT_CACHE is None:
+            print("🔍 Discovering dataset root...")
+            candidates = [
+                "/kaggle/input",
+                "/content/drive/MyDrive",
+                "/content",
+                os.getcwd(),
+                os.path.dirname(os.getcwd())
+            ]
+            for root_cand in candidates:
+                if not os.path.exists(root_cand): continue
+                # Search for the anchor folder
+                for root, dirs, _ in os.walk(root_cand):
+                    if "C-NMC_training_data" in dirs:
+                        CNMCDataset._ROOT_CACHE = root
+                        print(f"✅ Discovered Root: {root}")
+                        break
+                if CNMCDataset._ROOT_CACHE: break
+            
+            if CNMCDataset._ROOT_CACHE is None:
+                CNMCDataset._ROOT_CACHE = "" # Avoid re-scanning
+
+        # 3. Extract relative part and join with discovered root
         anchors = ["C-NMC_training_data", "C-NMC_test_prelim_phase_data"]
-        rel_part = ""
         for anchor in anchors:
             if anchor in orig_path:
                 rel_part = anchor + orig_path.split(anchor)[-1]
+                if CNMCDataset._ROOT_CACHE:
+                    # In some environments, the anchor is ALREADY inside the cache
+                    # e.g. Cache = .../C-NMC 2019 (PKG), Rel = C-NMC_training_data/...
+                    cand = os.path.join(CNMCDataset._ROOT_CACHE, rel_part)
+                    if os.path.exists(cand): return cand
+                    # Try parent if cache was a subfolder
+                    cand = os.path.join(os.path.dirname(CNMCDataset._ROOT_CACHE), rel_part)
+                    if os.path.exists(cand): return cand
                 break
-        
-        if rel_part:
-            # 3. Search common locations for these subfolders
-            # Kaggle: /kaggle/input/[dataset-slug]/C-NMC 2019 (PKG)/...
-            # Local/Colab: [root]/C-NMC_Dataset/PKG - C-NMC 2019/...
-            candidates = [
-                # Kaggle Official (with the folder flip seen in screenshot)
-                f"/kaggle/input/c-nmc-2019-dataset/C-NMC 2019 (PKG)/{rel_part}",
-                f"/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC 2019 (PKG)/{rel_part}",
-                
-                # Standard Local/Colab/Archive structures
-                os.path.join(os.getcwd(), "C-NMC_Dataset", "PKG - C-NMC 2019", rel_part),
-                os.path.join(os.path.dirname(os.getcwd()), "C-NMC_Dataset", "PKG - C-NMC 2019", rel_part),
-                f"/content/ALL-Detection/C-NMC_Dataset/PKG - C-NMC 2019/{rel_part}",
-                f"/content/C-NMC_Dataset/PKG - C-NMC 2019/{rel_part}",
-            ]
-            
-            for cand in candidates:
-                if os.path.exists(cand):
-                    return cand
                     
         return orig_path
 
