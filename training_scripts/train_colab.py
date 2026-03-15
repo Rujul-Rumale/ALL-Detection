@@ -68,11 +68,10 @@ def parse_args():
     parser.add_argument("--label_smoothing", type=float, default=0.05)
     parser.add_argument("--splits_json", type=str, default="cv_splits/cv_splits_3fold.json")
     parser.add_argument("--output_root", type=str, default="outputs")
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--no_live", action="store_true", help="Disable Rich Live UI")
     parser.add_argument("--fast_aug", action="store_true", help="Disable slow augs (sync with train.py)")
 
-    args = parser.parse_args()
     args = parser.parse_args()
     if args.model != "mnv3l" and args.lr_head == 3e-4:
         args.lr_head = 1.5e-4
@@ -376,8 +375,8 @@ def get_loaders(args, root_path=""):
     val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4, drop_last=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2)
     normed_weights = len(class_counts) / (class_counts * 2.0)
     info = {"train_total": len(fold_data["train_images"]), "val_total": len(fold_data["val_images"]),
             "train_all": sum(1 for _, l in fold_data["train_images"] if l == 0), "train_hem": sum(1 for _, l in fold_data["train_images"] if l == 1),
@@ -514,10 +513,10 @@ def main():
         cur = {"epoch":epoch, "auc":auc, "acc":acc, "sens":sens, "spec":spec, "f1":f1, "train_loss":train_l, "val_loss":val_l}
         if auc > best_auc:
             best_auc = auc; best_state = cur.copy()
-            if epoch > args.epochs: patience_counter = 0
+            patience_counter = 0
             torch.save({"epoch":epoch, "model_state_dict":model.state_dict(), "ema_state_dict":model_ema.state_dict(), "auc":auc}, ckpt_path)
         else:
-            if epoch > args.epochs: patience_counter += 1
+            patience_counter += 1
         ui_state["bLR"]=optimizer.param_groups[0]["lr"]; ui_state["hLR"]=optimizer.param_groups[1]["lr"]; ui_state["pat"]=patience_counter
         line = (
             f"E {epoch:>3}/{args.epochs} | "
@@ -543,10 +542,13 @@ def main():
                 print(f"Early stopping at epoch {e}")
                 break
     else:
-        with Live(Dashboard(), refresh_per_second=4, console=console) as live:
+        with Live(Panel("Starting..."), refresh_per_second=4, console=console) as live:
             for e in range(1, args.epochs + 1):
-                line = run_epoch(e); live.console.print(line); logger.info(line)
-                if patience_counter >= args.patience and e >= 80: break
+                line = run_epoch(e)
+                live.update(Panel(line))
+                live.console.print(line)
+                logger.info(line)
+                if patience_counter >= args.patience: break
     
     stop_event.set(); logger.info("Training Complete")
     
@@ -559,6 +561,7 @@ def main():
     with torch.no_grad():
         for images, labels in val_loader:
             images = images.to(device, non_blocking=True).float().div_(255.0)
+            images = val_tf(images)
             labels = labels.to(device, non_blocking=True)
             variants = [images, torch.flip(images, [3]), torch.flip(images, [2]), torch.flip(images, [2, 3])]
             avg_probs = torch.zeros(images.size(0), 2, device=device)
