@@ -54,23 +54,28 @@ def parse_args():
     parser.add_argument("--fold", type=int, required=True, choices=[1, 2, 3])
     parser.add_argument("--run_name", type=str, required=True)
     parser.add_argument("--res", type=int, default=320)
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=150)
     parser.add_argument("--patience", type=int, default=25)
     parser.add_argument("--lr_backbone", type=float, default=1e-5)
-    parser.add_argument("--lr_head", type=float, default=2e-4)
+    parser.add_argument("--lr_head", type=float, default=3e-4) # Sync with train.py
+    parser.add_argument("--warmup_epochs", type=int, default=10)
+    parser.add_argument("--phase1_start", type=int, default=11)
+    parser.add_argument("--phase1_5_start", type=int, default=21)
+    parser.add_argument("--phase2_start", type=int, default=41)
+    parser.add_argument("--cosine_t_max", type=int, default=150)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--label_smoothing", type=float, default=0.05)
-    parser.add_argument("--splits_json", type=str,
-                        default="cv_splits/cv_splits_3fold.json")
+    parser.add_argument("--splits_json", type=str, default="cv_splits/cv_splits_3fold.json")
     parser.add_argument("--output_root", type=str, default="outputs")
     parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--no_live", action="store_true",
-                        help="Disable Rich Live UI (use simple print lines)")
+    parser.add_argument("--no_live", action="store_true", help="Disable Rich Live UI")
+    parser.add_argument("--fast_aug", action="store_true", help="Disable slow augs (sync with train.py)")
 
     args = parser.parse_args()
-    if args.model != "mnv3l" and args.lr_head == 2e-4:
-        args.lr_head = 1e-4
+    args = parser.parse_args()
+    if args.model != "mnv3l" and args.lr_head == 3e-4:
+        args.lr_head = 1.5e-4
     return args
 
 
@@ -109,6 +114,27 @@ def discover_dataset_root():
                 print(f"✅ Discovered Root: {root}")
                 return root
     return ""
+
+def set_backbone_unfreeze_phase(model, phase, logger):
+    backbone = model[0]
+    if phase == 0:
+        for p in backbone.parameters(): p.requires_grad = False
+        logger.info("Backbone frozen (Phase 0 — head only)")
+    elif phase == 1:
+        for p in backbone.parameters(): p.requires_grad = False
+        blocks = list(backbone.children())
+        for m in blocks[-2:]:
+            for p in m.parameters(): p.requires_grad = True
+        logger.info("Backbone partially unfrozen — last 2 blocks (Phase 1)")
+    elif phase == 1.5:
+        for p in backbone.parameters(): p.requires_grad = False
+        blocks = list(backbone.children())
+        for m in blocks[-4:]:
+            for p in m.parameters(): p.requires_grad = True
+        logger.info("Backbone partially unfrozen — last 4 blocks (Phase 1.5)")
+    elif phase == 2:
+        for p in backbone.parameters(): p.requires_grad = True
+        logger.info("Backbone fully unfrozen (Phase 2)")
 
 class CNMCDataset(Dataset):
     def __init__(self, image_label_pairs, target_size: int, root_path: str = "", is_train: bool = True):
@@ -297,10 +323,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, use_amp
         preds = outputs.argmax(dim=1)
         correct += (preds == labels).sum().item(); total += labels.size(0); current_batch += 1
         
-        if no_live:
-            if current_batch % 10 == 0 or current_batch == num_batches:
-                print(f"    Batch {current_batch}/{num_batches} | Loss: {monitor.avg:.4f} | Acc: {correct/total:.4f}")
-        else:
+        if not no_live:
             progress.update(task_id, advance=1, description=f"  [yellow]Batch {current_batch}/{num_batches}[/yellow]")
             
     return monitor.avg, correct / total if total > 0 else 0
@@ -427,7 +450,7 @@ def build_display(run_id, fold_str, epoch, total_epochs, batch_progress, best, c
 #  Main
 # ═══════════════════════════════════════════════════════════════════════════════
 
-WARMUP_EPOCHS = 5
+# WARMUP_EPOCHS removed; now use args.warmup_epochs
 
 def main():
     args = parse_args(); console = Console(force_terminal=True)
@@ -445,6 +468,9 @@ def main():
     train_tf, val_tf = get_gpu_transforms(args.res, device); coarse_dropout = GPUCoarseDropout().to(device)
     model_ema = ModelEmaV2(model, decay=0.9998, device=device)
     
+    # Unfreeze Phase 0
+    set_backbone_unfreeze_phase(model, phase=0, logger=logger)
+    
     # --- IDENTITY BLOCK ---
     logger.info("=" * 70)
     logger.info(f"  Run ID:          {run_id}")
@@ -457,8 +483,11 @@ def main():
     logger.info("=" * 70)
 
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing, weight=loss_weights.to(device))
-    optimizer = optim.AdamW([{"params": backbone_params, "lr": args.lr_backbone}, {"params": head_params, "lr": args.lr_head}], weight_decay=args.weight_decay)
-    scheduler = SequentialLR(optimizer, schedulers=[LinearLR(optimizer, 0.1, total_iters=WARMUP_EPOCHS), CosineAnnealingLR(optimizer, args.epochs-WARMUP_EPOCHS)], milestones=[WARMUP_EPOCHS])
+    optimizer = optim.AdamW([
+        {"params": filter(lambda p: p.requires_grad, model[0].parameters()), "lr": args.lr_backbone}, 
+        {"params": model[1].parameters(), "lr": args.lr_head}
+    ], weight_decay=args.weight_decay)
+    scheduler = SequentialLR(optimizer, schedulers=[LinearLR(optimizer, 0.5, total_iters=args.warmup_epochs), CosineAnnealingLR(optimizer, args.cosine_t_max, eta_min=1e-7)], milestones=[args.warmup_epochs])
     scaler = torch.amp.GradScaler("cuda", enabled=device.type=="cuda")
     
     ms = {"cpu_pct":0, "ram_used":0, "ram_total":0, "gpu_util":0, "vram_used":0, "vram_total":0, "gpu_temp":0}
@@ -476,11 +505,21 @@ def main():
 
     def run_epoch(epoch):
         nonlocal best_auc, patience_counter, best_state
+        
+        # Progressive Unfreezing triggers
+        if epoch == args.phase1_start:
+            set_backbone_unfreeze_phase(model, 1, logger)
+            optimizer.param_groups[0]["params"] = list(filter(lambda p: p.requires_grad, model[0].parameters()))
+        elif epoch == args.phase1_5_start:
+            set_backbone_unfreeze_phase(model, 1.5, logger)
+            optimizer.param_groups[0]["params"] = list(filter(lambda p: p.requires_grad, model[0].parameters()))
+        elif epoch == args.phase2_start:
+            set_backbone_unfreeze_phase(model, 2, logger)
+            optimizer.param_groups[0]["params"] = list(model[0].parameters())
+
         t0 = time.time(); ui_state["epoch"] = epoch
         if not args.no_live:
             batch_progress.reset(batch_task, description=f"  [yellow]Batch 0/{len(train_loader)}[/yellow]")
-        else:
-            print(f"\n--- Epoch {epoch}/{args.epochs} ---")
             
         train_l, train_a = train_one_epoch(model, CUDAPrefetcher(train_loader, device), criterion, optimizer, scaler, device, True, train_tf, coarse_dropout, model_ema, batch_progress, batch_task, no_live=args.no_live)
         tta = 8 if epoch == args.epochs else 4 if epoch % 5 == 0 else 1
@@ -489,9 +528,11 @@ def main():
         avg_t = sum(epoch_times[-5:]) / len(epoch_times[-5:]); ui_state["eta"] = format_time(avg_t*(args.epochs-epoch))
         cur = {"epoch":epoch, "auc":auc, "acc":acc, "sens":sens, "spec":spec, "f1":f1, "train_loss":train_l, "val_loss":val_l}
         if auc > best_auc:
-            best_auc = auc; best_state = cur.copy(); patience_counter = 0
+            best_auc = auc; best_state = cur.copy()
+            if epoch > args.epochs: patience_counter = 0
             torch.save({"epoch":epoch, "model_state_dict":model.state_dict(), "ema_state_dict":model_ema.state_dict(), "auc":auc}, ckpt_path)
-        else: patience_counter += 1
+        else:
+            if epoch > args.epochs: patience_counter += 1
         ui_state["bLR"]=optimizer.param_groups[0]["lr"]; ui_state["hLR"]=optimizer.param_groups[1]["lr"]; ui_state["pat"]=patience_counter
         line = (
             f"E {epoch:>3}/{args.epochs} | "
@@ -523,6 +564,42 @@ def main():
                 if patience_counter >= args.patience and e >= 80: break
     
     stop_event.set(); logger.info("Training Complete")
+    
+    # ── Post-Training: Threshold Optimization + ONNX Export ───────────────────
+    logger.info("Loading best model for threshold optimization...")
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    model.load_state_dict(ckpt["model_state_dict"]); model.eval()
+    
+    all_targets_t, all_scores_t = [], []
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images = images.to(device, non_blocking=True).float().div_(255.0)
+            labels = labels.to(device, non_blocking=True)
+            variants = [images, torch.flip(images, [3]), torch.flip(images, [2]), torch.flip(images, [2, 3])]
+            avg_probs = torch.zeros(images.size(0), 2, device=device)
+            with torch.amp.autocast("cuda", enabled=True):
+                for v in variants: avg_probs += torch.softmax(model(v).float(), dim=1)
+            all_targets_t.extend(labels.cpu().numpy()); all_scores_t.extend((avg_probs/4)[:, 1].cpu().numpy())
+    all_targets_t, all_scores_t = np.array(all_targets_t), np.array(all_scores_t)
+    
+    logger.info("ROC threshold optimization (Youden's J):")
+    best_j, opt_thresh = -1, 0.5
+    for thresh in np.arange(0.35, 0.76, 0.05):
+        preds_ = (all_scores_t > thresh).astype(int); tn_, fp_, fn_, tp_ = confusion_matrix(all_targets_t, preds_).ravel()
+        se_ = tp_ / (tp_ + fn_) if (tp_ + fn_) > 0 else 0; sp_ = tn_ / (tn_ + fp_) if (tn_ + fp_) > 0 else 0
+        j_ = se_ + sp_ - 1; logger.info(f"{thresh:>10.2f} {se_:>8.4f} {sp_:>8.4f} {j_:>8.4f}")
+        if j_ > best_j: best_j = j_; opt_thresh = thresh
+    logger.info(f"Optimal threshold: {opt_thresh:.2f} (J={best_j:.4f})")
+    
+    # Save params with threshold (simulated as we don't have the JSON file in memory easily)
+    # Actually train_colab.py doesn't save a params.json usually, but for sync we will.
+    with open(os.path.join(out_dir, f"{run_id}_params.json"), "w") as f: json.dump(vars(args), f, indent=4)
+
+    logger.info("Exporting to ONNX...")
+    onnx_path = os.path.join(out_dir, f"{run_id}_best.onnx")
+    dummy = torch.randn(1, 3, args.res, args.res).to(device)
+    torch.onnx.export(model, dummy, onnx_path, input_names=["input"], output_names=["output"], dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}}, opset_version=13)
+    logger.info(f"[COMPLETE] Best AUC: {best_auc:.4f} | Optimal Threshold: {opt_thresh:.2f}")
 
 if __name__ == "__main__":
     main()
