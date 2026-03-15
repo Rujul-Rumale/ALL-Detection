@@ -138,41 +138,27 @@ def set_backbone_unfreeze_phase(model, phase, logger):
 
 class CNMCDataset(Dataset):
     def __init__(self, image_label_pairs, target_size: int, root_path: str = "", is_train: bool = True):
-        self.samples     = image_label_pairs
         self.target_size = target_size
-        self.root_path   = root_path
+        self.root_path   = root_path.replace("\\", "/") if root_path else ""
         self.is_train    = is_train
+        
+        # Pre-normalize paths to avoid slow os.path.exists checks during training loop
+        self.samples = []
+        for fpath, label in image_label_pairs:
+            fpath = fpath.replace("\\", "/")
+            if self.root_path:
+                for anchor in ["C-NMC_training_data", "C-NMC_test_prelim_phase_data"]:
+                    if anchor in fpath:
+                        rel = anchor + fpath.split(anchor)[-1]
+                        fpath = os.path.join(self.root_path, rel).replace("\\", "/")
+                        break
+            self.samples.append((fpath, label))
 
     def __len__(self):
         return len(self.samples)
 
-    def _normalize_path(self, path: str):
-        # Convert any style path to Linux/Forward slash
-        orig_path = path.replace("\\", "/")
-        
-        # 1. Try absolute path directly (if matches perfectly)
-        if os.path.exists(orig_path):
-            return orig_path
-            
-        # 2. Extract relative part and join with discovered root
-        anchors = ["C-NMC_training_data", "C-NMC_test_prelim_phase_data"]
-        for anchor in anchors:
-            if anchor in orig_path:
-                rel_part = anchor + orig_path.split(anchor)[-1]
-                if self.root_path:
-                    # Try directly under discovered root
-                    cand = os.path.join(self.root_path, rel_part)
-                    if os.path.exists(cand): return cand
-                    # Try parent (if root was pointed to PKG folder)
-                    cand = os.path.join(os.path.dirname(self.root_path), rel_part)
-                    if os.path.exists(cand): return cand
-                break
-                    
-        return orig_path
-
     def __getitem__(self, idx):
         fpath, label = self.samples[idx]
-        fpath = self._normalize_path(fpath)
 
         # Attempt to read with OpenCV
         image = cv2.imread(fpath)
