@@ -100,9 +100,20 @@ class CNMCDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
+    def _normalize_path(self, path: str):
+        # Convert Windows style paths to Linux/Local paths
+        if "leukiemea" in path.lower():
+            # Find everything after 'leukiemea'
+            parts = path.replace("\\", "/").split("leukiemea/")
+            if len(parts) > 1:
+                return os.path.join(os.getcwd(), parts[-1])
+        return path
+
     def __getitem__(self, idx):
         fpath, label = self.samples[idx]
+        fpath = self._normalize_path(fpath)
 
+        # Attempt to read with OpenCV
         image = cv2.imread(fpath)
         if image is not None:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
