@@ -108,18 +108,29 @@ class CNMCDataset(Dataset):
         if os.path.exists(orig_path):
             return orig_path
             
-        # 2. Extract the relative part after 'C-NMC_Dataset' anchor
-        if "C-NMC_Dataset" in orig_path:
-            rel_part = orig_path.split("C-NMC_Dataset/")[-1]
-            
-            # 3. Search common locations for C-NMC_Dataset root
+        # 2. Extract the relative part after the dataset root
+        # We look for the main subfolders as anchors
+        anchors = ["C-NMC_training_data", "C-NMC_test_prelim_phase_data"]
+        rel_part = ""
+        for anchor in anchors:
+            if anchor in orig_path:
+                rel_part = anchor + orig_path.split(anchor)[-1]
+                break
+        
+        if rel_part:
+            # 3. Search common locations for these subfolders
+            # Kaggle: /kaggle/input/[dataset-slug]/C-NMC 2019 (PKG)/...
+            # Local/Colab: [root]/C-NMC_Dataset/PKG - C-NMC 2019/...
             candidates = [
-                os.path.join(os.getcwd(), "C-NMC_Dataset", rel_part),                # Unzipped inside repo
-                os.path.join(os.path.dirname(os.getcwd()), "C-NMC_Dataset", rel_part), # Unzipped next to repo
-                f"/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC_Dataset/{rel_part}", # Kaggle Official
-                f"/kaggle/input/c-nmc-dataset/C-NMC_Dataset/{rel_part}",              # Kaggle custom upload
-                f"/content/ALL-Detection/C-NMC_Dataset/{rel_part}",                  # Colab internal
-                f"/content/C-NMC_Dataset/{rel_part}",                               # Colab local disk
+                # Kaggle Official (with the folder flip seen in screenshot)
+                f"/kaggle/input/c-nmc-2019-dataset/C-NMC 2019 (PKG)/{rel_part}",
+                f"/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC 2019 (PKG)/{rel_part}",
+                
+                # Standard Local/Colab/Archive structures
+                os.path.join(os.getcwd(), "C-NMC_Dataset", "PKG - C-NMC 2019", rel_part),
+                os.path.join(os.path.dirname(os.getcwd()), "C-NMC_Dataset", "PKG - C-NMC 2019", rel_part),
+                f"/content/ALL-Detection/C-NMC_Dataset/PKG - C-NMC 2019/{rel_part}",
+                f"/content/C-NMC_Dataset/PKG - C-NMC 2019/{rel_part}",
             ]
             
             for cand in candidates:
