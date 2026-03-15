@@ -18,6 +18,7 @@ import subprocess
 from datetime import datetime
 
 import cv2
+cv2.setNumThreads(0)
 import numpy as np
 
 import torch
@@ -368,8 +369,8 @@ def get_loaders(args, root_path=""):
     val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4, drop_last=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=4)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2)
     normed_weights = len(class_counts) / (class_counts * 2.0)
     info = {"train_total": len(fold_data["train_images"]), "val_total": len(fold_data["val_images"]),
             "train_all": sum(1 for _, l in fold_data["train_images"] if l == 0), "train_hem": sum(1 for _, l in fold_data["train_images"] if l == 1),
@@ -481,6 +482,7 @@ def main():
             batch_progress.reset(batch_task, description=f"  [yellow]Batch 0/{len(train_loader)}[/yellow]")
         else:
             print(f"\n--- Epoch {epoch}/{args.epochs} ---")
+            print("⏳ Initializing DataWorkers (loading first batch)...")
             
         train_l, train_a = train_one_epoch(model, CUDAPrefetcher(train_loader, device), criterion, optimizer, scaler, device, True, train_tf, coarse_dropout, model_ema, batch_progress, batch_task, no_live=args.no_live)
         tta = 8 if epoch == args.epochs else 4 if epoch % 5 == 0 else 1
