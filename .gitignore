@@ -29,7 +29,7 @@ models/checkpoints/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
+# *.ipynb
 
 # IDE
 .vscode/
