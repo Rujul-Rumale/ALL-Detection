@@ -1,7 +1,7 @@
 # ALL Detection System - Python Requirements
 
 ## Core Dependencies
-numpy>=1.21.0
+numpy>=1.21.0,<2.0.0
 opencv-python>=4.5.0
 scikit-learn>=1.0.0
 scikit-image>=0.18.0
@@ -11,7 +11,17 @@ scipy>=1.7.0
 torch>=2.0.0
 torchvision>=0.15.0
 timm>=0.9.0
-tensorflow>=2.10.0  # Desktop training / TFLite export
+tensorflow>=2.10.0  # TFLite runtime for inference
+
+## GPU Augmentation (training)
+kornia>=0.7.0
+
+## Segmentation (SAM)
+transformers>=4.30.0
+
+## Model Export
+onnx>=1.14.0
+onnx-tf>=1.10.0
 
 ## GUI
 customtkinter>=5.2.0
@@ -25,9 +35,6 @@ matplotlib>=3.4.0
 pandas>=1.3.0
 seaborn>=0.11.0
 albumentations>=1.3.0
-
-## XAI
-tf-keras-vis>=0.8.0
 
 ## Utilities
 tqdm>=4.62.0

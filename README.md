@@ -24,12 +24,12 @@ python ui/classification_demo.py
 ### Raspberry Pi 5
 
 ```bash
-chmod +x setup_pi.sh
-./setup_pi.sh    # Installs everything automatically
-./run.sh         # Launch the app
+cd linux_training
+./install_deps.sh    # Installs system dependencies automatically
+# Note: Models should be trained on desktop first and deployed here
 ```
 
-The setup script handles: Python dependencies, Ollama installation, model download, desktop shortcut.
+The desktop handles pipeline training; Pi handles inference via `src/ui/classification_demo.py`.
 
 ## Project Structure
 
@@ -37,26 +37,18 @@ The setup script handles: Python dependencies, Ollama installation, model downlo
 src/
 ├── ui/                          # Desktop GUI (CustomTkinter)
 │   ├── classification_demo.py   # Main application (Watershed → SAM → Classify)
-│   ├── app.py                   # Lightweight edge app (K-Means fallback)
 │   └── theme.py                 # Design system
 ├── detection/                   # Core detection pipeline
 │   ├── demo_pipeline.py         # Production pipeline (Watershed → SAM → TFLite)
-│   ├── generate_cell_crops_sam.py  # Watershed centroid finder + SAM crop generator
-│   ├── blast_detector_v5.py     # Lightweight edge-only detector (K-Means + L1 scoring)
-│   ├── stage1_screening.py      # TFLite screening model wrapper
-│   └── llm_utils.py             # AI summary generation (Ollama / Phi-3)
-├── segmentation/                # WBC segmentation utilities
-├── classifier/                  # Dataset loader + model definitions
-└── utils/                       # Visualization, preprocessing utilities
+│   └── generate_cell_crops_sam.py  # Watershed centroid finder + SAM crop generator
+├── utils/                       # Visualization, preprocessing utilities
+└── config.py                    # Master config for image resolution & normalization
 
-models/                  # Trained model files (.tflite)
 training_scripts/        # Model training scripts (PyTorch)
-evaluation_scripts/      # ROC analysis, validation evaluation
-benchmarks/              # Segmentation method comparison scripts
-evaluation_outputs/      # Generated figures (ROC curves, confusion matrices)
-docs/                    # Technical documentation + evaluation reports
+paper/                   # LaTeX figures and paper generation scripts
 data/                    # Reference images, processed crops
-tests/                   # Development test scripts
+tests/                   # Pytest suite
+_archive/                # Legacy models, legacy tests, and old evaluation scripts
 ```
 
 ## Datasets
@@ -67,7 +59,7 @@ tests/                   # Development test scripts
 | **ALL-IDB1** | End-to-end Testing | Full blood smear images for pipeline evaluation |
 | **ALL-IDB2** | Segmentation Benchmark | 260 pre-cropped cells for cross-dataset testing |
 
-See [DATASETS.md](DATASETS.md) for full details.
+
 
 ## Key Results
 

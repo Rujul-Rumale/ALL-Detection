@@ -14,8 +14,10 @@ import numpy as np
 from PIL import Image
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-STAGING_DIR = r"c:\Open Source\leukiemea\cnmc_staging"
-OUTPUT_DIR = r"c:\Open Source\leukiemea\cnmc_staging_normed"
+from src.config import PROJECT_ROOT
+
+STAGING_DIR = str(PROJECT_ROOT / "cnmc_staging")
+OUTPUT_DIR = str(PROJECT_ROOT / "cnmc_staging_normed")
 
 # ============ MACENKO NORMALIZER ============
 class MacenkoNormalizer:

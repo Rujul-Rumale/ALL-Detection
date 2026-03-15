@@ -135,7 +135,9 @@ def normalize_staining(img, save_file=None, template_img=None, Io=240, alpha=1, 
         return img.reshape(h, w, c)
 
 
-def resize_with_padding(image, target_size=(224, 224)):
+from src.config import INPUT_RES
+
+def resize_with_padding(image, target_size=(INPUT_RES, INPUT_RES)):
     """
     Resize image to target_size while maintaining aspect ratio using padding.
     """

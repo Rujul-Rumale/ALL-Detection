@@ -39,16 +39,20 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-PROJECT_ROOT   = r"c:\Open Source\leukiemea"
-PKG_BASE       = os.path.join(PROJECT_ROOT, "C-NMC_Dataset", "PKG - C-NMC 2019")
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.config import PROJECT_ROOT
+
+PKG_BASE       = str(PROJECT_ROOT / "C-NMC_Dataset" / "PKG - C-NMC 2019")
 TRAIN_BASE     = os.path.join(PKG_BASE, "C-NMC_training_data")
 PRELIM_BASE    = os.path.join(PKG_BASE, "C-NMC_test_prelim_phase_data")
 PRELIM_CSV     = os.path.join(PRELIM_BASE, "C-NMC_test_prelim_phase_data_labels.csv")
 PRELIM_IMG_DIR = PRELIM_BASE  # images are flat in this dir (1.bmp, 2.bmp, ...)
 
-OUT_TRAIN      = os.path.join(PROJECT_ROOT, "cnmc_normed_training")
-OUT_PRELIM     = os.path.join(PROJECT_ROOT, "cnmc_normed_prelim")
-FAILURES_LOG   = os.path.join(PROJECT_ROOT, "normalization_failures.txt")
+OUT_TRAIN      = str(PROJECT_ROOT / "cnmc_normed_training")
+OUT_PRELIM     = str(PROJECT_ROOT / "cnmc_normed_prelim")
+FAILURES_LOG   = str(PROJECT_ROOT / "normalization_failures.txt")
 
 EXPECTED_TRAIN_ALL = 7272
 EXPECTED_TRAIN_HEM = 3389

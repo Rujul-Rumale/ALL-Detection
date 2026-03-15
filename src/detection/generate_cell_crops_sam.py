@@ -13,8 +13,12 @@ from tqdm import tqdm
 # ==========================================
 # CONFIGURATION
 # ==========================================
-DATASET_DIR = r"c:\Open Source\leukiemea\ALL_IDB\ALL_IDB Dataset\L2"  # Testing L2 first
-OUTPUT_DIR = r"c:\Open Source\leukiemea\data\processed_crops_sam"
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.config import PROJECT_ROOT
+
+DATASET_DIR = str(PROJECT_ROOT / "ALL_IDB" / "ALL_IDB Dataset" / "L2")  # Testing L2 first
+OUTPUT_DIR = str(PROJECT_ROOT / "data" / "processed_crops_sam")
 RAW_CROP_SIZE = 176  # Size to extract from original image (to ensure wide margins)
 CROP_SIZE = 128      # Final output dimensions
 RESIZE_FACTOR = 0.5  # For faster processing

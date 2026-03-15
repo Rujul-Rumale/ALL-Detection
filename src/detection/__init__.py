@@ -1,6 +1,4 @@
 # Detection module init
-from .stage1_screening import ALLScreener
-from .blast_detector_v5 import detect_blasts
-from .pipeline import ALLPipeline
+from .demo_pipeline import DemoPipeline
 
-__all__ = ['ALLScreener', 'detect_blasts', 'ALLPipeline']
+__all__ = ['DemoPipeline']

@@ -17,22 +17,26 @@ from detection.generate_cell_crops_sam import get_watershed_centroids, extract_1
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 CROP_SIZE = 128
 BLAST_CONF_THRESHOLD = 0.85  # Only classify as ALL if confidence >= this (model has ALL bias)
+from src.config import INPUT_RES, IMAGENET_MEAN, IMAGENET_STD
+from pathlib import Path as _Path
+_PROJECT_ROOT = _Path(__file__).resolve().parents[2]
+_MODELS_DIR = str(_PROJECT_ROOT / "models")
 
 MODELS = {
     "MobileNetV3-Large v2 (Balanced)": {
-        "path": r"c:\Open Source\leukiemea\models\mobilenetv3_large_v2.tflite",
+        "path": os.path.join(_MODELS_DIR, "mobilenetv3_large_v2.tflite"),
         "class_to_idx": {'all': 0, 'hem': 1}
     },
     "MobileNetV3-Small (Weighted)": {
-        "path": r"c:\Open Source\leukiemea\models\mobilenetv3_cnmc.tflite",
+        "path": os.path.join(_MODELS_DIR, "mobilenetv3_cnmc.tflite"),
         "class_to_idx": {'all': 0, 'hem': 1}
     },
     "MobileNetV3-Small (Unweighted)": {
-        "path": r"c:\Open Source\leukiemea\models\mobilenetv3_cnmc_unweighted.tflite",
+        "path": os.path.join(_MODELS_DIR, "mobilenetv3_cnmc_unweighted.tflite"),
         "class_to_idx": {'all': 0, 'hem': 1}
     },
     "MobileNetV3-Large (Weighted)": {
-        "path": r"c:\Open Source\leukiemea\models\mobilenetv3_large_cnmc.tflite",
+        "path": os.path.join(_MODELS_DIR, "mobilenetv3_large_cnmc.tflite"),
         "class_to_idx": {'all': 0, 'hem': 1}
     }
 }
@@ -293,7 +297,7 @@ class DemoPipeline:
                 # Real cell: classify with TFLite + TTA (4 orientations)
                 results["total_cells"] += 1
                 
-                crop_resized = cv2.resize(crop_rgb, (224, 224))
+                crop_resized = cv2.resize(crop_rgb, (INPUT_RES, INPUT_RES))
                 
                 # Generate 4 TTA variants: original, h-flip, v-flip, both
                 variants = [
@@ -307,7 +311,7 @@ class DemoPipeline:
                 all_probs = []
                 for variant in variants:
                     v_norm = variant.astype(np.float32) / 255.0
-                    v_norm = (v_norm - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
+                    v_norm = (v_norm - np.array(IMAGENET_MEAN)) / np.array(IMAGENET_STD)
                     v_trans = np.transpose(v_norm, (2, 0, 1))
                     v_tensor = np.expand_dims(v_trans, axis=0).astype(np.float32)
                     

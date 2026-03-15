@@ -19,9 +19,11 @@ from PIL import Image, ImageEnhance, ImageFilter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from sklearn.model_selection import train_test_split
 
-RAW_DIR = r"c:\Open Source\leukiemea\C-NMC"
-NORMED_DIR = r"c:\Open Source\leukiemea\cnmc_staging_normed"
-DST_DIR = r"c:\Open Source\leukiemea\cnmc_staging_balanced"
+from pathlib import Path
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = str(_PROJECT_ROOT / "C-NMC")
+NORMED_DIR = str(_PROJECT_ROOT / "cnmc_staging_normed")
+DST_DIR = str(_PROJECT_ROOT / "cnmc_staging_balanced")
 
 RANDOM_SEED = 42
 VAL_RATIO = 0.20  # 80/20 split

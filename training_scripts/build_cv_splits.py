@@ -42,7 +42,8 @@ import sys
 from datetime import datetime
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-PROJECT_ROOT = r"c:\Open Source\leukiemea"
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PKG_BASE     = os.path.join(PROJECT_ROOT, "C-NMC_Dataset", "PKG - C-NMC 2019")
 TRAIN_BASE   = os.path.join(PKG_BASE, "C-NMC_training_data")
 PRELIM_BASE  = os.path.join(PKG_BASE, "C-NMC_test_prelim_phase_data")

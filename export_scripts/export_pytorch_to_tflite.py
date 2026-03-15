@@ -4,7 +4,8 @@ import torch.nn as nn
 from torchvision import models
 
 # ============ CONFIG ============
-OUTPUT_DIR = r"c:\Open Source\leukiemea\models"
+from pathlib import Path
+OUTPUT_DIR = str(Path(__file__).resolve().parents[1] / "models")
 IMG_SIZE = 224
 DEVICE = torch.device("cpu") # Export on CPU
 

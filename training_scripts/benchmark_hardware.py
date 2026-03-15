@@ -7,10 +7,10 @@ from datetime import datetime
 
 # Configuration Grid
 GRID = {
-    16: [1, 2, 3, 4, 5, 6, 7, 8],
-    32: [1, 2, 3, 4, 5, 6],
-    64: [1, 2, 3],
-    128: [0, 1]
+    16: [2, 4, 6],     # Baseline — safe but underutilizes GPU
+    32: [2, 4, 6],     # Primary candidates
+    48: [2, 4],        # [Speculation] May fit in 6GB — worth testing
+    64: [2, 4],        # May OOM — keep timeout short
 }
 
 OUTPUT_ROOT = "outputs/benchmarks"
@@ -19,12 +19,12 @@ os.makedirs(OUTPUT_ROOT, exist_ok=True)
 results = []
 
 def run_benchmark(batch_size, num_workers):
-    run_id = f"bench_b{batch_size}_w{num_workers}"
+    run_id = f"bench_effb0_b{batch_size}_w{num_workers}"
     print(f"\n>>> TESTING: Batch={batch_size}, Workers={num_workers} | RunID: {run_id}")
     
     cmd = [
-        "python", "training_scripts/train_base.py",
-        "--model", "mnv3l",
+        "python", "training_scripts/train.py",
+        "--model", "effb0",
         "--fold", "1",
         "--run_name", run_id,
         "--output_root", OUTPUT_ROOT,

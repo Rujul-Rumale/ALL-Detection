@@ -1,4 +1,0 @@
-Model Name,Accuracy,Sensitivity (ALL),Specificity (HEM),Total Params,Inference Time Eval Phase (s)
-MobileNetV3-Small (Weighted),82.86%,93.49%,59.03%,1075234,25.19
-MobileNetV3-Small (Unweighted),41.80%,30.32%,67.52%,1075234,24.95
-MobileNetV3-Large (Weighted),83.45%,97.23%,52.55%,3218482,26.36

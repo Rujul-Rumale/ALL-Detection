@@ -68,3 +68,7 @@ PROGRESS.md
 # External reference repos (cloned for study)
 ALL-Arduino-Nano-33-BLE-Sense-Classifier/
 all-classifiers-2019/
+
+
+*.zip
+
