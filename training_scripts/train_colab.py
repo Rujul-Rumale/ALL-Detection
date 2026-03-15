@@ -495,7 +495,14 @@ def main():
             torch.save({"epoch":epoch, "model_state_dict":model.state_dict(), "ema_state_dict":model_ema.state_dict(), "auc":auc}, ckpt_path)
         else: patience_counter += 1
         ui_state["bLR"]=optimizer.param_groups[0]["lr"]; ui_state["hLR"]=optimizer.param_groups[1]["lr"]; ui_state["pat"]=patience_counter
-        line = f"E {epoch:>3}/{args.epochs} | TrL={train_l:.4f} TrA={train_a:.4f} | VlA={acc:.4f} AUC={auc:.4f} | {ep_t}s | pat={patience_counter}/{args.patience}{' *BEST' if cur['auc']==best_auc else ''}"
+        line = (
+            f"E {epoch:>3}/{args.epochs} | "
+            f"TrL={train_l:.4f} TrA={train_a:.4f} | "
+            f"VlA={acc:.4f} F1={f1:.4f} Se={sens:.4f} Sp={spec:.4f} AUC={auc:.4f} | "
+            f"bLR={ui_state['bLR']:.6f} hLR={ui_state['hLR']:.6f} | "
+            f"{ep_t}s | ETA {ui_state['eta']} | "
+            f"pat={patience_counter}/{args.patience}{' *BEST' if cur['auc']==best_auc else ''}"
+        )
         with open(metrics_path, "a") as f: f.write(f"{epoch},{train_l:.4f},{train_a:.4f},{val_l:.4f},{acc:.4f},{auc:.4f},{sens:.4f},{spec:.4f},{f1:.4f},{ep_t}\n")
         return line
 
