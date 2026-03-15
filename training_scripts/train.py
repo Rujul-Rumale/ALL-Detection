@@ -632,8 +632,7 @@ def main():
 
     torch.set_num_threads(8)
     torch.set_num_interop_threads(4)
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
+    torch.set_float32_matmul_precision('high')
     torch.backends.cudnn.benchmark = True
     use_amp = device.type == "cuda"
 
