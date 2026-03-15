@@ -21,7 +21,7 @@ transformers>=4.30.0
 
 ## Model Export
 onnx>=1.14.0
-onnx-tf>=1.10.0
+# onnx-tf>=1.10.0  # Fails in Colab (needs Python < 3.11 for tensorflow-addons)
 
 ## GUI
 customtkinter>=5.2.0
