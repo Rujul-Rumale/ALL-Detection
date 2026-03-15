@@ -83,8 +83,6 @@ def parse_args():
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--no_live", action="store_true",
                         help="Disable Rich Live UI (use simple print lines)")
-    parser.add_argument("--fast_aug", action="store_true",
-                        help="Disable slow augmentations (ElasticTransform, Blur) for speed")
 
     args = parser.parse_args()
     if args.model != "mnv3l" and args.lr_head == 3e-4:
@@ -128,33 +126,24 @@ class CNMCDataset(Dataset):
         return image, label
 
 
-def get_transforms(res, fast_aug=False):
-    train_list = [
+def get_transforms(res):
+    train_transform = A.Compose([
         A.Resize(res + 32, res + 32),
         A.RandomCrop(res, res),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomRotate90(p=0.5),
         A.Affine(shear=(-10, 10), scale=(0.9, 1.1), p=0.5),
-    ]
-
-    if not fast_aug:
-        train_list.extend([
-            A.ElasticTransform(alpha=1, sigma=10, p=0.3, approximate=True),
-            A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=0.5),
-            A.GaussianBlur(blur_limit=(3, 7), p=0.2),
-        ])
-
-    train_list.extend([
+        A.ElasticTransform(alpha=1, sigma=10, p=0.3, approximate=True),
+        # Stain/color jitter — simulates H&E staining variation across devices
+        A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.02, p=0.5),
+        A.GaussianBlur(blur_limit=(3, 7), p=0.2),
         A.CoarseDropout(num_holes_range=(8, 8),
                         hole_height_range=(res // 10, res // 10),
                         hole_width_range=(res // 10, res // 10), p=0.2),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2()
     ])
-
-    train_transform = A.Compose(train_list)
-    
     val_transform = A.Compose([
         A.Resize(res, res),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -363,7 +352,7 @@ def get_loaders(args):
     train_pairs = fold_data["train_images"]
     val_pairs = fold_data["val_images"]
 
-    train_transform, val_transform = get_transforms(args.res, fast_aug=args.fast_aug)
+    train_transform, val_transform = get_transforms(args.res)
     train_ds = CNMCDataset(train_pairs, transform=train_transform)
     val_ds = CNMCDataset(val_pairs, transform=val_transform)
 
@@ -632,7 +621,8 @@ def main():
 
     torch.set_num_threads(8)
     torch.set_num_interop_threads(4)
-    torch.set_float32_matmul_precision('high')
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     torch.backends.cudnn.benchmark = True
     use_amp = device.type == "cuda"
 

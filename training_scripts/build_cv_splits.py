@@ -50,6 +50,7 @@ def find_pkg_base():
     Search for the CNMC dataset root in common environment locations.
     """
     candidates = [
+        "/kaggle/working/dataset",
         # Kaggle Official
         "/kaggle/input/c-nmc-2019-dataset/C-NMC 2019 (PKG)",
         "/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC 2019 (PKG)",

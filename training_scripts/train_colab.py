@@ -136,7 +136,7 @@ def set_backbone_unfreeze_phase(model, phase, logger):
         logger.info("Backbone fully unfrozen (Phase 2)")
 
 class CNMCDataset(Dataset):
-    def __init__(self, image_label_pairs, target_size: int, root_path: str = "", is_train: bool = True):
+    def __init__(self, image_label_pairs, target_size: int, root_path: str = "", is_train: bool = True, cache_in_ram: bool = False):
         self.target_size = target_size
         self.root_path   = root_path.replace("\\", "/") if root_path else ""
         self.is_train    = is_train
@@ -153,18 +153,34 @@ class CNMCDataset(Dataset):
                         break
             self.samples.append((fpath, label))
 
+        self.cache = {}
+        if cache_in_ram:
+            print(f"  [Cache] Loading {len(self.samples)} images into RAM...")
+            for i, (fpath, _) in enumerate(self.samples):
+                img = cv2.imread(fpath)
+                if img is not None:
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                else:
+                    img = np.array(Image.open(fpath).convert("RGB"))
+                self.cache[i] = img
+                if i % 2000 == 0 and i > 0:
+                    print(f"  [Cache] {i}/{len(self.samples)}")
+            print(f"  [Cache] Done.")
+
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         fpath, label = self.samples[idx]
 
-        # Attempt to read with OpenCV
-        image = cv2.imread(fpath)
-        if image is not None:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        if idx in self.cache:
+            image = self.cache[idx]
         else:
-            image = np.array(Image.open(fpath).convert("RGB"))
+            image = cv2.imread(fpath)
+            if image is not None:
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            else:
+                image = np.array(Image.open(fpath).convert("RGB"))
 
         if self.is_train:
             image = cv2.resize(image, (self.target_size + 32, self.target_size + 32), interpolation=cv2.INTER_LINEAR)
@@ -347,6 +363,20 @@ def validate(model, loader, criterion, device, use_amp, val_tf, tta_ways=8):
 
 TIMM_NAME_MAP = {"mnv3l": "mobilenetv3_large_100", "effb0": "efficientnet_b0", "effb4": "efficientnet_b4", "rn50": "resnet50"}
 
+HIDDEN_DIM_MAP = {
+    "mnv3l": 128,
+    "effb0": 128,
+    "effb4": 256,
+    "rn50":  256,
+}
+
+DROPOUT_MAP = {
+    "mnv3l": 0.6,
+    "effb0": 0.5,
+    "effb4": 0.4,
+    "rn50":  0.4,
+}
+
 class ConstrainedHead(nn.Module):
     def __init__(self, in_features, hidden_dim=128, num_classes=2, dropout=0.6):
         super().__init__()
@@ -355,13 +385,20 @@ class ConstrainedHead(nn.Module):
     def forward(self, x): return self.head(x)
 
 def get_model(args):
-    timm_name = TIMM_NAME_MAP[args.model]
+    timm_name  = TIMM_NAME_MAP[args.model]
+    hidden_dim = HIDDEN_DIM_MAP[args.model]
+    dropout    = DROPOUT_MAP[args.model]
     backbone = timm.create_model(timm_name, pretrained=True, num_classes=0)
     backbone.eval()
-    with torch.no_grad(): in_features = backbone(torch.zeros(2, 3, 224, 224)).shape[-1]
+    with torch.no_grad():
+        in_features = backbone(torch.zeros(2, 3, 224, 224)).shape[-1]
     backbone.train()
-    model = nn.Sequential(backbone, ConstrainedHead(in_features, dropout=0.6))
-    return model, list(model[0].parameters()), list(model[1].parameters()), timm_name, in_features
+    model = nn.Sequential(
+        backbone,
+        ConstrainedHead(in_features, hidden_dim=hidden_dim, dropout=dropout)
+    )
+    return model, list(model[0].parameters()), list(model[1].parameters()), \
+           timm_name, in_features
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -371,8 +408,8 @@ def get_model(args):
 def get_loaders(args, root_path=""):
     with open(args.splits_json, "r") as f: splits = json.load(f)
     fold_key = f"fold_{args.fold}"; fold_data = splits["folds"][fold_key]
-    train_ds = CNMCDataset(fold_data["train_images"], target_size=args.res + 64, root_path=root_path, is_train=True)
-    val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False)
+    train_ds = CNMCDataset(fold_data["train_images"], target_size=args.res + 64, root_path=root_path, is_train=True,  cache_in_ram=True)
+    val_ds   = CNMCDataset(fold_data["val_images"],   target_size=args.res,      root_path=root_path, is_train=False, cache_in_ram=True)
     labels = [p[1] for p in fold_data["train_images"]]; class_counts = np.bincount(labels)
     sampler = WeightedRandomSampler(weights=np.array([1.0 / class_counts[l] for l in labels]), num_samples=len(labels), replacement=True)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=True, persistent_workers=True, prefetch_factor=2, drop_last=True)
@@ -445,7 +482,7 @@ def main():
     ds_root = discover_dataset_root()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.set_num_threads(8); torch.backends.cudnn.benchmark = True; torch.set_float32_matmul_precision("high")
+    torch.set_num_threads(2); torch.backends.cudnn.benchmark = True; torch.set_float32_matmul_precision("high")
     train_loader, val_loader, loss_weights, class_counts, data_info = get_loaders(args, root_path=ds_root)
     model, backbone_params, head_params, timm_name, in_feat = get_model(args)
     model = model.to(device).to(memory_format=torch.channels_last)
