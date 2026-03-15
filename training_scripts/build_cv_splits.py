@@ -51,6 +51,7 @@ def find_pkg_base():
     """
     candidates = [
         "/kaggle/working/dataset",
+        "/kaggle/input/datasets/shafiullahshafin/c-nmc-2019-dataset/C-NMC 2019 (PKG)",
         # Kaggle Official
         "/kaggle/input/c-nmc-2019-dataset/C-NMC 2019 (PKG)",
         "/kaggle/input/c-nmc-leukemia-classification-challenge/C-NMC 2019 (PKG)",
