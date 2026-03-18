@@ -27,7 +27,7 @@ Fold assignment rules:
   - Leakage check: assert zero patient overlap between every fold pair
 
 Output:
-  cv_splits/cv_splits_3fold.json      -- machine-readable, used by train_base.py
+  cv_splits/cv_splits_3fold.json      -- machine-readable, used by train.py
   cv_splits/cv_splits_audit.txt       -- human-readable, inspect before trusting
   cv_splits/prelim_split_assignment.json -- how the 28 prelim patients were assigned
 

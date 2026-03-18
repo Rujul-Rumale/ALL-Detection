@@ -37,7 +37,7 @@ def run_benchmark(batch_size, num_workers):
     try:
         subprocess.run(cmd, capture_output=False, text=True, timeout=600)
         
-        # train_base.py creates: OUTPUT_ROOT/run_id/run_id_fold1_TIMESTAMP_metrics.csv
+        # train.py creates: OUTPUT_ROOT/run_id/run_id_fold1_TIMESTAMP_metrics.csv
         # Glob for it since we don't know the exact timestamp
         run_dir = os.path.join(OUTPUT_ROOT, run_id)
         csv_files = glob.glob(os.path.join(run_dir, "*_metrics.csv"))

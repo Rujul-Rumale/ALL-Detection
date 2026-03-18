@@ -1,6 +1,6 @@
 """
-train_base.py
-=============
+train.py
+========
 Phase 1: Unified Training Script for ALL Leukemia Edge Classifier.
 Publication-grade implementation following strict Research Engineering Plan v1.0.
 
@@ -14,7 +14,7 @@ Features:
   - Early stopping with patience
 
 Usage:
-  python training_scripts/train_base.py --model mnv3l --fold 1 --run_name mnv3l_v1
+  python training_scripts/train.py --model mnv3l --fold 1 --run_name mnv3l_v1
 """
 
 import os
@@ -644,7 +644,7 @@ def main():
 
     startup_lines = [
         "=" * 70,
-        "  ALL Leukemia Edge Classifier -- train_base.py",
+        "  ALL Leukemia Edge Classifier -- train.py",
         f"  Run ID:          {run_id}",
         f"  Model:           {args.model}",
         f"  Fold:            {args.fold} (val) | Folds {folds_train} (train)",
