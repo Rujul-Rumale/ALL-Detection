@@ -14,6 +14,6 @@ def test_imports():
         from src.detection.demo_pipeline import DemoPipeline
         from src.utils.preprocessing import resize_with_padding
         from src.ui.classification_demo import ClassificationDemoApp
-        from training_scripts.train import get_model, AsymmetricFocalLoss
+        from training_scripts.train import get_model, MildFocalLoss
     except ImportError as e:
         pytest.fail(f"Could not import canonical modules: {e}")

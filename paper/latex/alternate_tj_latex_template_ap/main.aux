@@ -1,0 +1,120 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{b_bray2018}
+\citation{b3,b4,b7,b10}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:introduction}{{I}{1}{Introduction}{section.1}{}}
+\citation{b3}
+\citation{b4}
+\citation{b7}
+\citation{b10}
+\citation{b7}
+\citation{b10}
+\citation{b_howard2019}
+\citation{b12}
+\citation{b11_new}
+\citation{b2}
+\citation{b1}
+\citation{b_quant_survey,b_jacob2018}
+\citation{b13_new,b14_new}
+\citation{b5}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{2}{section.2}\protected@file@percent }
+\newlabel{sec:related}{{II}{2}{Related Work}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {II-A}Automated ALL Detection}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {II-B}Lightweight CNN Architectures for Medical Imaging}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {II-C}Edge Deployment of Medical AI}{2}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Dataset and Preprocessing}{2}{section.3}\protected@file@percent }
+\newlabel{sec:data}{{III}{2}{Dataset and Preprocessing}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {III-A}C-NMC 2019 Dataset}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {III-B}Subject-Disjoint Cross-Validation Protocol}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {III-C}Class Imbalance}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {III-D}Augmentation}{2}{subsection.3.4}\protected@file@percent }
+\citation{b_howard2019}
+\citation{b12}
+\citation{b_adamw}
+\citation{b_cosine}
+\citation{b_youden}
+\citation{b_jacob2018}
+\citation{b_kmeans_lab}
+\citation{b_watershed}
+\citation{b_sam}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Independent Model Training Pipeline representing progressive backbone unfreezing, geometric augmentations, and post-training threshold optimisation applied sequentially for classification robustness.}}{3}{figure.1}\protected@file@percent }
+\newlabel{fig:architecture}{{1}{3}{Independent Model Training Pipeline representing progressive backbone unfreezing, geometric augmentations, and post-training threshold optimisation applied sequentially for classification robustness}{figure.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Methodology}{3}{section.4}\protected@file@percent }
+\newlabel{sec:method}{{IV}{3}{Methodology}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {IV-A}Model Training Pipeline}{3}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.1}Network Architecture}{3}{subsubsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.2}Progressive Backbone Unfreezing}{3}{subsubsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.3}Loss Function}{3}{subsubsection.4.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.4}Optimisation Schedule}{3}{subsubsection.4.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.5}Post-Training Threshold Calibration}{3}{subsubsection.4.1.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-A.6}Model Export}{3}{subsubsection.4.1.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {IV-B}End-to-End Inference Application}{3}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-B.1}Cell Localisation}{3}{subsubsection.4.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-B.2}SAM Boundary Refinement}{3}{subsubsection.4.2.2}\protected@file@percent }
+\citation{b_tta}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces End-to-End Application Demo Pipeline demonstrating K-Means morphological localisation matching with automated Phi-3 generative reporting.}}{4}{figure.2}\protected@file@percent }
+\newlabel{fig:demo_pipeline}{{2}{4}{End-to-End Application Demo Pipeline demonstrating K-Means morphological localisation matching with automated Phi-3 generative reporting}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-B.3}Crop Standardisation}{4}{subsubsection.4.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-B.4}TTA Classification}{4}{subsubsection.4.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {IV-B.5}Clinical Report Generation}{4}{subsubsection.4.2.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Classification Performance (3-Fold Subject-Disjoint CV)}}{4}{table.1}\protected@file@percent }
+\newlabel{tab:metrics}{{I}{4}{Classification Performance (3-Fold Subject-Disjoint CV)}{table.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Aggregated training and validation focal loss curves for MobileNetV3-Large across 3-fold cross-validation. Vertical markers denote the unfreezing phase transitions.}}{4}{figure.3}\protected@file@percent }
+\newlabel{fig:loss}{{3}{4}{Aggregated training and validation focal loss curves for MobileNetV3-Large across 3-fold cross-validation. Vertical markers denote the unfreezing phase transitions}{figure.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Mean Validation AUC-ROC progression showcasing evaluation stability.}}{4}{figure.4}\protected@file@percent }
+\newlabel{fig:auc}{{4}{4}{Mean Validation AUC-ROC progression showcasing evaluation stability}{figure.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Results}{4}{section.5}\protected@file@percent }
+\newlabel{sec:results}{{V}{4}{Results}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {V-A}Classification Performance}{4}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {V-B}Comparison with Prior Work}{4}{subsection.5.2}\protected@file@percent }
+\citation{b3}
+\citation{b4}
+\citation{b7}
+\citation{b10}
+\citation{b_tta}
+\citation{b7,b10}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Aggregated Sensitivity (ALL Recall) and Specificity (HEM Recall) progression over 150 training epochs.}}{5}{figure.5}\protected@file@percent }
+\newlabel{fig:metrics_all}{{5}{5}{Aggregated Sensitivity (ALL Recall) and Specificity (HEM Recall) progression over 150 training epochs}{figure.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Comparison Against State-of-the-Art Works}}{5}{table.2}\protected@file@percent }
+\newlabel{tab:sota}{{II}{5}{Comparison Against State-of-the-Art Works}{table.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Local Application Inference Benchmark}}{5}{table.3}\protected@file@percent }
+\newlabel{tab:edgebench}{{III}{5}{Local Application Inference Benchmark}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {V-C}Test-Time Augmentation Ablation}{5}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {V-D}Local Inference Latency}{5}{subsection.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Discussion}{5}{section.6}\protected@file@percent }
+\newlabel{sec:discussion}{{VI}{5}{Discussion}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {VI-A}Subject-Disjoint Evaluation and Metric Interpretation}{5}{subsection.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {VI-B}Deployment Constraints}{5}{subsection.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {VI-C}Clinical Scope and Safety}{5}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {VI-D}Limitations}{5}{subsection.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{5}{section.7}\protected@file@percent }
+\newlabel{sec:conclusion}{{VII}{5}{Conclusion}{section.7}{}}
+\bibcite{b_bray2018}{1}
+\bibcite{b3}{2}
+\bibcite{b4}{3}
+\bibcite{b7}{4}
+\bibcite{b10}{5}
+\bibcite{b_howard2019}{6}
+\bibcite{b12}{7}
+\bibcite{b11_new}{8}
+\bibcite{b2}{9}
+\bibcite{b1}{10}
+\bibcite{b_quant_survey}{11}
+\bibcite{b_jacob2018}{12}
+\bibcite{b13_new}{13}
+\bibcite{b14_new}{14}
+\bibcite{b5}{15}
+\bibcite{b_adamw}{16}
+\bibcite{b_cosine}{17}
+\bibcite{b_youden}{18}
+\bibcite{b_kmeans_lab}{19}
+\bibcite{b_watershed}{20}
+\bibcite{b_sam}{21}
+\bibcite{b_tta}{22}
+\bibcite{b_mobilenet_v2}{23}
+\bibcite{b6}{24}
+\@writefile{toc}{\contentsline {section}{References}{6}{section*.2}\protected@file@percent }
+\gdef \@abspage@last{6}

@@ -30,7 +30,6 @@ from timm.utils import ModelEmaV2
 import kornia.augmentation as K
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
-from sklearn.metrics import roc_auc_score, confusion_matrix, f1_score as sk_f1
 from PIL import Image
 from rich.live import Live
 from rich.panel import Panel
@@ -38,6 +37,11 @@ from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 from rich.table import Table
 from rich.console import Console
 from rich import box
+
+from src.utils.training_metrics import (
+    compute_all_positive_metrics,
+    sweep_all_positive_thresholds,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -366,7 +370,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device, use_amp
 
 def validate(model, loader, criterion, device, use_amp, val_tf, tta_ways=8):
     model.eval()
-    monitor = MetricMonitor(); all_targets = []; all_scores = []
+    monitor = MetricMonitor(); all_targets = []; all_scores_all = []
     with torch.no_grad():
         for images, labels in loader:
             images = val_tf(images.contiguous()).to(memory_format=torch.channels_last)
@@ -384,13 +388,10 @@ def validate(model, loader, criterion, device, use_amp, val_tf, tta_ways=8):
                     if i == 0: logits_orig = logits
                     avg_probs += torch.softmax(logits.float(), dim=1)
             avg_probs /= len(variants); loss = criterion(logits_orig.float(), labels)
-            monitor.update(loss.item(), images.size(0)); all_targets.extend(labels.cpu().numpy()); all_scores.extend(avg_probs[:, 1].cpu().numpy())
-    all_targets = np.array(all_targets); all_scores = np.array(all_scores)
-    preds = (all_scores > 0.5).astype(int); acc = (preds == all_targets).mean(); auc = roc_auc_score(all_targets, all_scores)
-    tn, fp, fn, tp = confusion_matrix(all_targets, preds).ravel()
-    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0; specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
-    f1 = sk_f1(all_targets, preds, zero_division=0)
-    return monitor.avg, acc, auc, sensitivity, specificity, f1
+            monitor.update(loss.item(), images.size(0)); all_targets.extend(labels.cpu().numpy()); all_scores_all.extend(avg_probs[:, 0].cpu().numpy())
+    all_targets = np.array(all_targets); all_scores_all = np.array(all_scores_all)
+    metrics = compute_all_positive_metrics(all_targets, all_scores_all, threshold=0.5)
+    return monitor.avg, metrics["acc"], metrics["auc"], metrics["sens"], metrics["spec"], metrics["f1"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -628,7 +629,7 @@ def main():
     stop_event.set(); logger.info("Training Complete")
     
     # ── Post-Training: Threshold Optimization + ONNX Export ───────────────────
-    logger.info("Loading best model for threshold optimization...")
+    logger.info("Loading best model for ALL-threshold optimization...")
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"]); model.eval()
     
@@ -642,21 +643,23 @@ def main():
             avg_probs = torch.zeros(images.size(0), 2, device=device)
             with torch.amp.autocast("cuda", enabled=True):
                 for v in variants: avg_probs += torch.softmax(model(v).float(), dim=1)
-            all_targets_t.extend(labels.cpu().numpy()); all_scores_t.extend((avg_probs/4)[:, 1].cpu().numpy())
+            all_targets_t.extend(labels.cpu().numpy()); all_scores_t.extend((avg_probs/4)[:, 0].cpu().numpy())
     all_targets_t, all_scores_t = np.array(all_targets_t), np.array(all_scores_t)
     
-    logger.info("ROC threshold optimization (Youden's J):")
-    best_j, opt_thresh = -1, 0.5
+    logger.info("ALL-positive ROC threshold optimization (Youden's J):")
+    opt_metrics = sweep_all_positive_thresholds(all_targets_t, all_scores_t)
     for thresh in np.arange(0.35, 0.76, 0.05):
-        preds_ = (all_scores_t > thresh).astype(int); tn_, fp_, fn_, tp_ = confusion_matrix(all_targets_t, preds_).ravel()
-        se_ = tp_ / (tp_ + fn_) if (tp_ + fn_) > 0 else 0; sp_ = tn_ / (tn_ + fp_) if (tn_ + fp_) > 0 else 0
-        j_ = se_ + sp_ - 1; logger.info(f"{thresh:>10.2f} {se_:>8.4f} {sp_:>8.4f} {j_:>8.4f}")
-        if j_ > best_j: best_j = j_; opt_thresh = thresh
-    logger.info(f"Optimal threshold: {opt_thresh:.2f} (J={best_j:.4f})")
+        thresh_metrics = compute_all_positive_metrics(all_targets_t, all_scores_t, threshold=thresh)
+        j_score = thresh_metrics["sens"] + thresh_metrics["spec"] - 1.0
+        logger.info(f"{thresh:>10.2f} {thresh_metrics['sens']:>8.4f} {thresh_metrics['spec']:>8.4f} {j_score:>8.4f}")
+    opt_thresh = opt_metrics["threshold"]
+    logger.info(f"Optimal ALL threshold: {opt_thresh:.2f} (J={opt_metrics['j']:.4f})")
     
-    # Save params with threshold (simulated as we don't have the JSON file in memory easily)
-    # Actually train_colab.py doesn't save a params.json usually, but for sync we will.
-    with open(os.path.join(out_dir, f"{run_id}_params.json"), "w") as f: json.dump(vars(args), f, indent=4)
+    # Save params with the ALL-positive operating threshold for downstream review.
+    params = vars(args).copy()
+    params["optimal_threshold"] = float(opt_thresh)
+    with open(os.path.join(out_dir, f"{run_id}_params.json"), "w") as f:
+        json.dump(params, f, indent=4)
 
     logger.info("Exporting to ONNX...")
     onnx_path = os.path.join(out_dir, f"{run_id}_best.onnx")
