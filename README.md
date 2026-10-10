@@ -126,3 +126,13 @@ See [requirements.txt](requirements.txt) for Python dependencies.
 - **Watershed Segmentation:** Meyer, F. (1994). *Topographic distance and watershed lines.* Signal Processing, 38(1), 113–125.
 - **Macenko Stain Normalization:** Macenko, M., et al. (2009). *A Method for Normalizing Histology Slides for Quantitative Analysis.* Proceedings of the IEEE International Symposium on Biomedical Imaging (ISBI), pp. 1107–1110.
 - **Test-Time Augmentation (TTA):** Shanmugam, D., et al. (2021). *Better Aggregation in Test-Time Augmentation.* Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 1214–1223.
+
+## License
+
+Code in this repository is released under the MIT License. Copyright (c) 2026 Rujul Rumale. See [LICENSE](LICENSE).
+
+The C-NMC 2019 and ALL-IDB datasets, and any third-party pretrained models, remain under their own respective licenses and are not covered by this license.
+
+## Disclaimer
+
+This project is a research prototype and is not a medical device. It is not intended for clinical or diagnostic use.
